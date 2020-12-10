@@ -22,15 +22,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"testing"
 
-	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
+	envoy_api_v2_auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 )
 
 func TestSecretConvert(t *testing.T) {
-	var sec = auth.Secret{
-		Name : "mosn",
+	var sec = envoy_api_v2_auth.Secret{
+		Name: "mosn",
 	}
 
-	sdsSec := SecretConvert(&sec)
+	sdsSec := SecretConvertV2(&sec)
 	assert.Equal(t, sdsSec.Name, "mosn")
 }
 

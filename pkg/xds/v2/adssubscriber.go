@@ -84,13 +84,17 @@ func (adsClient *ADSClient) receiveThread() {
 			}
 			resp, err := sc.Recv()
 			if err != nil {
-				// rpc error: code = Unavailable desc = transport is closing
-				log.DefaultLogger.Infof("[xds] [ads client] get resp error: %v, retry after 1s", err)
+				log.DefaultLogger.Infof("[xds] [ads client] get resp timeout: %v, retry after 1s", err)
 				time.Sleep(time.Second)
 				continue
 			}
 			typeURL := resp.TypeUrl
-			HandleTypeURL(typeURL, adsClient, resp)
+			/*
+			 * If xDS resource too big, Istio may be have write timeout error when use sync, such as:
+			 *		2020-12-01T09:17:29.354132Z	info	ads	Timeout writing sidecar~10.49.18.38~no-project-aabb-gz01a-blue-67cb764fcb-8dq4t.dmall-inner~dmall-inner.svc.cluster.local-39
+			 * So, will use async
+			 */
+			go HandleTypeURL(typeURL, adsClient, resp)
 		}
 	}
 }
