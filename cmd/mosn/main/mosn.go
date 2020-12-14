@@ -64,7 +64,12 @@ import (
 	_ "mosn.io/mosn/pkg/upstream/healthcheck"
 	_ "mosn.io/mosn/pkg/upstream/servicediscovery/dubbod"
 	_ "mosn.io/mosn/pkg/xds"
+
+	_ "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
+	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 )
+
+var _ = &corev3.Pipe{}
 
 // Version mosn version
 var Version = "0.4.0"

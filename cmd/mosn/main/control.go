@@ -125,6 +125,9 @@ var (
 			}, cli.IntFlag{
 				Name:  "log-format-prefix-with-location",
 				Usage: "log-format-prefix-with-location, align to Istio startup params, currently useless",
+			}, cli.IntFlag{
+				Name: "bootstrap-version",  // 目前没用，就是 v3
+				Usage: "API version to parse the bootstrap config as (e.g. 3). If unset, all known versions will be attempted",
 			},
 		},
 		Action: func(c *cli.Context) error {

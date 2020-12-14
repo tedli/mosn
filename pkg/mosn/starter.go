@@ -160,7 +160,7 @@ func NewMosn(c *v2.MOSNConfig) *Mosn {
 			//initialize server instance
 			srv = server.NewServer(sc, cmf, m.clustermanager)
 
-			for idx, _ := range serverConfig.Listeners {
+			for idx := range serverConfig.Listeners {
 				// parse ListenerConfig
 				lc := configmanager.ParseListenerConfig(&serverConfig.Listeners[idx], inheritListeners, inheritPacketConn)
 				// deprecated: keep compatible for route config in listener's connection_manager

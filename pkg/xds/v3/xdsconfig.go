@@ -30,9 +30,13 @@ import (
 	envoy_config_bootstrap_v3 "github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v3"
 	envoy_config_cluster_v3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	envoy_config_core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	listenerv3 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	httpconnectionmanagerv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	envoy_extensions_transport_sockets_tls_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	envoy_service_discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	wellknown "github.com/envoyproxy/go-control-plane/pkg/wellknown"
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -48,11 +52,77 @@ func (c *XDSConfig) Init(dynamicResources *envoy_config_bootstrap_v3.Bootstrap_D
 	if err != nil {
 		return err
 	}
+	loadStaticResources(staticResources)
 	err = c.loadADSConfig(dynamicResources)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+const (
+	connectionManager = "envoy.filters.network.http_connection_manager"
+)
+
+var (
+	typeFactoryMapping = map[string]func() proto.Message{
+		connectionManager: func() proto.Message { return new(httpconnectionmanagerv3.HttpConnectionManager) },
+	}
+)
+
+func loadStaticResources(staticResources *envoy_config_bootstrap_v3.Bootstrap_StaticResources) (err error) {
+	conv.ConvertUpdateClusters(staticResources.Clusters)
+	var listeners []*listenerv3.Listener
+	if listeners = staticResources.Listeners; listeners == nil || len(listeners) <= 0 {
+		return
+	}
+	conv.ConvertAddOrUpdateListeners(listeners)
+	var routes []*routev3.RouteConfiguration
+	if routes, err = collectRouters(listeners); err != nil {
+		return
+	}
+	conv.ConvertAddOrUpdateRouters(routes)
+	return
+}
+
+func collectRouters(listeners []*listenerv3.Listener) (routes []*routev3.RouteConfiguration, err error) {
+	for _, listener := range listeners {
+		var filterChains []*listenerv3.FilterChain
+		if filterChains = listener.FilterChains; filterChains == nil || len(filterChains) <= 0 {
+			continue
+		}
+		for _, filterChain := range filterChains {
+			var filters []*listenerv3.Filter
+			if filters = filterChain.Filters; filters == nil || len(filters) <= 0 {
+				continue
+			}
+			for _, filter := range filters {
+				if factory, exist := typeFactoryMapping[filter.Name]; exist {
+					typedConfig := factory()
+					if err = ptypes.UnmarshalAny(filter.GetTypedConfig(), typedConfig); err != nil {
+						return
+					}
+					switch typedConfig.(type) {
+					case *httpconnectionmanagerv3.HttpConnectionManager:
+						manager := typedConfig.(*httpconnectionmanagerv3.HttpConnectionManager)
+						if routerConfig := manager.GetRouteConfig(); routerConfig != nil {
+							if routes == nil {
+								routes = make([]*routev3.RouteConfiguration, 0, len(listeners))
+							}
+							routes = append(routes, routerConfig)
+						}
+					default:
+						log.DefaultLogger.Warnf("cannot handle route config type, listener: %s, name: %s",
+							listener.Name, filter.Name)
+					}
+				} else {
+					log.DefaultLogger.Warnf("cannot handle route type, listener: %s, filter: %s",
+						listener.Name, filter.Name)
+				}
+			}
+		}
+	}
+	return
 }
 
 func (c *XDSConfig) loadADSConfig(dynamicResources *envoy_config_bootstrap_v3.Bootstrap_DynamicResources) error {
@@ -159,6 +229,17 @@ func (c *XDSConfig) loadClusters(staticResources *envoy_config_bootstrap_v3.Boot
 		config.Address = make([]string, 0, len(cluster.LoadAssignment.GetEndpoints()[0].LbEndpoints))
 		for _, host := range cluster.LoadAssignment.GetEndpoints()[0].LbEndpoints {
 			endpoint := host.GetEndpoint()
+
+			// Istio 1.8+ use istio-agent proxy request Istiod
+			if pipe := endpoint.Address.GetPipe(); pipe != nil {
+				newAddress := fmt.Sprintf("unix://%s", pipe.Path)
+				config.Address = append(config.Address, newAddress)
+				break
+			}
+
+			if endpoint.Address.GetSocketAddress() == nil {
+				log.DefaultLogger.Fatalf("xds v3 cluster.loadassignment pipe and socket both empty")
+			}
 			if port, ok := endpoint.Address.GetSocketAddress().PortSpecifier.(*envoy_config_core_v3.SocketAddress_PortValue); ok {
 				newAddress := fmt.Sprintf("%s:%d", endpoint.Address.GetSocketAddress().Address, port.PortValue)
 				config.Address = append(config.Address, newAddress)
@@ -166,7 +247,6 @@ func (c *XDSConfig) loadClusters(staticResources *envoy_config_bootstrap_v3.Boot
 				log.DefaultLogger.Warnf("only PortValue supported")
 				continue
 			}
-
 		}
 		c.Clusters[name] = &config
 	}
@@ -191,8 +271,31 @@ func (c *ADSConfig) GetStreamClient() envoy_service_discovery_v3.AggregatedDisco
 		return c.StreamClient.Client
 	}
 
-	sc := &StreamClient{}
+	sc := &StreamClient{
+		Conn: c.buildClient(),
+	}
 
+	if sc.Conn == nil {
+		return nil
+	}
+	client := envoy_service_discovery_v3.NewAggregatedDiscoveryServiceClient(sc.Conn)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	sc.Cancel = cancel
+	streamClient, err := client.StreamAggregatedResources(ctx)
+	if err != nil {
+		log.DefaultLogger.Infof("fail to create stream client: %v", err)
+		if sc.Conn != nil {
+			sc.Conn.Close()
+		}
+		return nil
+	}
+	sc.Client = streamClient
+	c.StreamClient = sc
+	return streamClient
+}
+
+func (c *ADSConfig) buildClient() *grpc.ClientConn {
 	if c.Services == nil {
 		log.DefaultLogger.Errorf("no available ads service")
 		return nil
@@ -220,38 +323,23 @@ func (c *ADSConfig) GetStreamClient() envoy_service_discovery_v3.AggregatedDisco
 			log.DefaultLogger.Errorf("did not connect: %v", err)
 			return nil
 		}
-		log.DefaultLogger.Infof("mosn estab grpc connection to pilot at %v", endpoint)
-		sc.Conn = conn
-	} else {
-		// Grpc with mTls support
-		creds, err := c.getTLSCreds(tlsContext)
-		if err != nil {
-			log.DefaultLogger.Errorf("xds-grpc get tls creds fail: err= %v", err)
-			return nil
-		}
-		conn, err := grpc.Dial(endpoint, grpc.WithTransportCredentials(creds), generateDialOption())
-		if err != nil {
-			log.DefaultLogger.Errorf("did not connect: %v", err)
-			return nil
-		}
-		log.DefaultLogger.Infof("mosn estab grpc connection to pilot at %v", endpoint)
-		sc.Conn = conn
+		log.DefaultLogger.Infof("mosn estab grpc connection to pilot with address at %v", endpoint)
+		return conn
 	}
-	client := envoy_service_discovery_v3.NewAggregatedDiscoveryServiceClient(sc.Conn)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	sc.Cancel = cancel
-	streamClient, err := client.StreamAggregatedResources(ctx)
+	// Grpc with mTls support
+	creds, err := c.getTLSCreds(tlsContext)
 	if err != nil {
-		log.DefaultLogger.Infof("fail to create stream client: %v", err)
-		if sc.Conn != nil {
-			sc.Conn.Close()
-		}
+		log.DefaultLogger.Errorf("xds-grpc get tls creds fail: err= %v", err)
 		return nil
 	}
-	sc.Client = streamClient
-	c.StreamClient = sc
-	return streamClient
+	conn, err := grpc.Dial(endpoint, grpc.WithTransportCredentials(creds), generateDialOption())
+	if err != nil {
+		log.DefaultLogger.Errorf("did not connect: %v", err)
+		return nil
+	}
+	log.DefaultLogger.Infof("mosn estab grpc connection to pilot with address and mTls at %v", endpoint)
+	return conn
 }
 
 func (c *ADSConfig) getTLSCreds(tlsContextConfig *envoy_config_core_v3.TransportSocket) (credentials.TransportCredentials, error) {
