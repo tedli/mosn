@@ -1,0 +1,353 @@
+package zookeeper
+
+import (
+	"bytes"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"io"
+	"math"
+	"sync"
+
+	"github.com/go-zookeeper/zk"
+	jsoniter "github.com/json-iterator/go"
+	"mosn.io/mosn/pkg/log"
+)
+
+type ReadWriteReseter interface {
+	io.ReadWriter
+	Reset()
+	WriteTo(w io.Writer) (n int64, err error)
+	Bytes() []byte
+	Len() int
+}
+
+type Manager interface {
+	OnData(buffer ReadWriteReseter, isRequest bool) IOStateCondition
+}
+
+type IOStateCondition int
+
+const (
+	ZookeeperNeedMoreData      IOStateCondition = 1
+	ZookeeperFinishedFiltering IOStateCondition = 2
+
+	Uint32Size = 4
+	
+)
+
+type OpCode int
+
+const (
+	OpNotify          OpCode = 0
+	OpCreate          OpCode = 1
+	OpDelete          OpCode = 2
+	OpExists          OpCode = 3
+	OpGetData         OpCode = 4
+	OpSetData         OpCode = 5
+	OpGetAcl          OpCode = 6
+	OpSetAcl          OpCode = 7
+	OpGetChildren     OpCode = 8
+	OpSync            OpCode = 9
+	OpPing            OpCode = 11
+	OpGetChildren2    OpCode = 12
+	OpCheck           OpCode = 13
+	OpMulti           OpCode = 14
+	OpReconfig        OpCode = 16
+	OpCreateContainer OpCode = 19
+	OpCreateTTL       OpCode = 21
+	OpClose           OpCode = -11
+	OpSetAuth         OpCode = 100
+	OpSetWatches      OpCode = 101
+	OpError           OpCode = -1
+	OpWatcherEvent    OpCode = -2 // Not in protocol, used internally
+)
+
+var (
+	opCodeNameMapping = map[OpCode]string{
+		OpNotify:          "Notify",
+		OpCreate:          "Create",
+		OpDelete:          "Delete",
+		OpExists:          "Exists",
+		OpGetData:         "GetData",
+		OpSetData:         "SetData",
+		OpGetAcl:          "GetAcl",
+		OpSetAcl:          "SetAcl",
+		OpGetChildren:     "GetChildren",
+		OpSync:            "Sync",
+		OpPing:            "Ping",
+		OpGetChildren2:    "GetChildren2",
+		OpCheck:           "Check",
+		OpMulti:           "Multi",
+		OpReconfig:        "Reconfig",
+		OpCreateContainer: "CreateContainer",
+		OpCreateTTL:       "CreateTTL",
+		OpClose:           "Close",
+		OpSetAuth:         "SetAuth",
+		OpSetWatches:      "SetWatches",
+		OpError:           "Error",
+		OpWatcherEvent:    "WatcherEvent",
+	}
+)
+
+func (o OpCode) String() string {
+	name, known := opCodeNameMapping[o]
+	if known {
+		return name
+	}
+	return "Unknown"
+}
+
+type pathSetter interface {
+	SetPath(path string)
+}
+
+type dataSetter interface {
+	SetData(data []byte)
+}
+
+type serializer interface {
+	Marshal(v interface{}) ([]byte, error)
+}
+
+type CreateRequest struct {
+	XidAndOpCode Untouched
+	Path string
+	Data []byte
+	TheRest Untouched
+}
+
+func (cr *CreateRequest) SetPath(path string) {
+	cr.Path = path
+}
+
+func (cr *CreateRequest) SetData(data []byte) {
+	cr.Data = data
+}
+
+type CreateResponse struct {
+	XidZxidAndErrCode Untouched
+	Path string
+}
+
+func (cr *CreateResponse) SetPath(path string) {
+	cr.Path = path
+}
+
+type GetDataRequest struct {
+	XidAndOpCode Untouched
+	Path string
+	TheRest Untouched
+}
+
+func (gdr *GetDataRequest) SetPath(path string) {
+	gdr.Path = path
+}
+
+type GetDataResponse struct {
+	XidZxidAndErrCode Untouched
+	Data []byte
+	TheRest Untouched
+}
+
+func (gdr *GetDataResponse) SetData(data []byte) {
+	gdr.Data = data
+}
+
+type GetChildren2Response struct {
+	DeltaLength
+	XidZxidAndErrCode Untouched
+	Children []string
+	Stat Untouched
+}
+
+type Context struct {
+	Buffer                                 ReadWriteReseter  // the buffer object
+	RawPayload                             []byte  // content of buffer buffer
+	Xid                                    int
+	Zxid                                   uint64
+	OpCode                                 OpCode
+	Error                                  error  // error responsed from zk, not errors occurred in golang
+	Path                                   string  // the path we want it to be
+	OriginalPath                           string  // the path it used to be
+	Data                                   []byte  // the data
+	Value                                  interface{}  // the unmarshaled object from data
+	Modified                               bool
+	PathBegin, PathEnd, DataBegin, DataEnd int  // the index in the raw payload
+	Request                                *Context  // if this is a response, it's the corresponding request
+	Watch                                  bool
+	Payload interface{}  // the final payload layout if we modified the request or respone
+
+	session *sync.Map  // the request, response mapping, you should never play with this
+}
+
+func modifyIfNeeded(ctx *Context) (ReadWriteReseter, error) {
+	if ctx.Payload == nil || !ctx.Modified {
+		return ctx.Buffer, nil
+	}
+	payload := ctx.Payload
+	setNewPath, needSetPath := payload.(pathSetter)
+	var deltaLength int
+	if needSetPath {
+		setNewPath.SetPath(ctx.Path)
+		deltaLength += len(ctx.Path) - (ctx.PathEnd - ctx.PathBegin) 
+	}
+	setNewData, needSetData := payload.(dataSetter)
+	if needSetData {
+		serialize, ok := payload.(serializer)
+		if !ok {
+			serialize = jsoniter.ConfigCompatibleWithStandardLibrary
+		}
+		data, err := serialize.Marshal(ctx.Value)
+		if  err != nil {
+			log.DefaultLogger.Errorf("zookeeper.modify, marshal data failed, %s", err)
+			return nil, err
+		}
+		setNewData.SetData(data)
+		deltaLength += len(data) - (ctx.DataEnd - ctx.DataBegin)
+	}
+	deltaLengthGetter, hasDeltaLength := payload.(DeltaLength)
+	if hasDeltaLength {
+		deltaLength += deltaLengthGetter.GetDeltaLength()
+	}
+	bufferLength := len(ctx.RawPayload) + deltaLength
+	buffer := make([]byte, bufferLength)
+	if _, err := encodePacket(buffer[Uint32Size:], payload); err != nil {
+		log.DefaultLogger.Errorf("zookeeper.modify, marshal payload failed, %s", err)
+		return nil, err
+	}
+	binary.BigEndian.PutUint32(buffer[:Uint32Size], uint32(bufferLength - Uint32Size))
+	return bytes.NewBuffer(buffer), nil
+}
+
+func serializeContextInternal(ctx *Context, buffer *bytes.Buffer) (err error) {
+	var content ReadWriteReseter
+	if content, err = modifyIfNeeded(ctx); err != nil {
+		return
+	}
+	_, err = content.WriteTo(buffer)
+	return
+}
+
+func SerializeContexts(ctxs []*Context) (ReadWriteReseter, error) {
+	buffer := new(bytes.Buffer)
+	for _, ctx := range ctxs {
+		if err := serializeContextInternal(ctx, buffer); err != nil {
+			return nil, err
+		}
+	}
+	return buffer, nil
+}
+
+const (
+	Undefined = math.MinInt32
+)
+
+func NewContext(buffer ReadWriteReseter, session *sync.Map) *Context {
+	return &Context{
+		Buffer:     buffer,
+		RawPayload: buffer.Bytes(),
+		Xid:        Undefined,
+		Zxid:       math.MaxUint64,
+		OpCode:     Undefined,
+		session:    session,
+	}
+}
+
+type Filter interface {
+	HandleRequest(ctx *Context)
+	HandleResponse(ctx *Context)
+}
+
+type FilterFactory interface {
+	Create() Filter
+}
+
+func RegisterZookeeperFilter(id string, filter Filter) {
+
+}
+
+func ResolveFilter(id string) Filter {
+	return nil
+}
+
+func ParseErrorCode(code int) error {
+	err, known := errCodeErrorMapping[code]
+	if known {
+		return err
+	}
+	return errors.New(fmt.Sprintf("unknown zookeeper error code, %d", code))
+}
+
+const (
+	errOk = 0
+	// System and server-side errors
+	errSystemError          = -1
+	errRuntimeInconsistency = -2
+	errDataInconsistency    = -3
+	errConnectionLoss       = -4
+	errMarshallingError     = -5
+	errUnimplemented        = -6
+	errOperationTimeout     = -7
+	errBadArguments         = -8
+	errInvalidState         = -9
+	// API errors
+	errAPIError                = -100
+	errNoNode                  = -101 // *
+	errNoAuth                  = -102
+	errBadVersion              = -103 // *
+	errNoChildrenForEphemerals = -108
+	errNodeExists              = -110 // *
+	errNotEmpty                = -111
+	errSessionExpired          = -112
+	errInvalidCallback         = -113
+	errInvalidAcl              = -114
+	errAuthFailed              = -115
+	errClosing                 = -116
+	errNothing                 = -117
+	errSessionMoved            = -118
+	// Attempts to perform a reconfiguration operation when reconfiguration feature is disabled
+	errZReconfigDisabled = -123
+)
+
+var (
+	ErrInvalidCallback      = errors.New("InvalidCallback")
+	ErrZReconfigDisabled    = errors.New("ZReconfigDisabled")
+	ErrSystemError          = errors.New("SystemError")
+	ErrRuntimeInconsistency = errors.New("RuntimeInconsistency")
+	ErrDataInconsistency    = errors.New("DataInconsistency")
+	ErrConnectionLoss       = errors.New("ConnectionLoss")
+	ErrMarshallingError     = errors.New("MarshallingError")
+	ErrUnimplemented        = errors.New("Unimplemented")
+	ErrOperationTimeout     = errors.New("OperationTimeout")
+	ErrBadArguments         = errors.New("BadArguments")
+	ErrInvalidState         = errors.New("InvalidState")
+
+	errCodeErrorMapping = map[int]error{
+		errOk:                      nil,
+		errAPIError:                zk.ErrAPIError,
+		errNoNode:                  zk.ErrNoNode,
+		errNoAuth:                  zk.ErrNoAuth,
+		errBadVersion:              zk.ErrBadVersion,
+		errNoChildrenForEphemerals: zk.ErrNoChildrenForEphemerals,
+		errNodeExists:              zk.ErrNodeExists,
+		errNotEmpty:                zk.ErrNotEmpty,
+		errSessionExpired:          zk.ErrSessionExpired,
+		errInvalidCallback:         ErrInvalidCallback,
+		errInvalidAcl:              zk.ErrInvalidACL,
+		errAuthFailed:              zk.ErrAuthFailed,
+		errClosing:                 zk.ErrClosing,
+		errNothing:                 zk.ErrNothing,
+		errSessionMoved:            zk.ErrSessionMoved,
+		errZReconfigDisabled:       ErrZReconfigDisabled,
+		errSystemError:             ErrSystemError,
+		errRuntimeInconsistency:    ErrRuntimeInconsistency,
+		errDataInconsistency:       ErrDataInconsistency,
+		errConnectionLoss:          ErrConnectionLoss,
+		errMarshallingError:        ErrMarshallingError,
+		errUnimplemented:           ErrUnimplemented,
+		errOperationTimeout:        ErrOperationTimeout,
+		errBadArguments:            ErrBadArguments,
+		errInvalidState:            ErrInvalidState,
+	}
+)
