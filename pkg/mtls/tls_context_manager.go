@@ -20,6 +20,7 @@ package mtls
 import (
 	"net"
 	"reflect"
+	"strings"
 	"time"
 
 	"mosn.io/mosn/pkg/config/v2"
@@ -162,8 +163,14 @@ func (mng *clientContextManager) Conn(c net.Conn) (net.Conn, error) {
 	if !mng.Enabled() {
 		return c, nil
 	}
+
+	tlsConfig := mng.provider.GetTLSConfigContext(true).Config()
+	if tlsConfig.ServerName == "" {
+		tlsConfig.ServerName = strings.Split(c.RemoteAddr().String(), ":")[0]
+	}
+
 	// make tls connection and try handshake
-	tlsconn := tls.Client(c, mng.provider.GetTLSConfigContext(true).Config())
+	tlsconn := tls.Client(c, tlsConfig)
 	tlsconn.SetReadDeadline(time.Now().Add(handshakeTimeout))
 	if err := tlsconn.Handshake(); err != nil {
 		c.Close() // close the failed connection

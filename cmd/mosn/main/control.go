@@ -31,6 +31,7 @@ import (
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/metrics"
 	"mosn.io/mosn/pkg/mosn"
+	"mosn.io/mosn/pkg/mtls"
 	"mosn.io/mosn/pkg/types"
 )
 
@@ -139,6 +140,10 @@ var (
 			flagLogLevel := c.String("log-level")
 
 			conf := configmanager.Load(configPath)
+
+			// set global mtls
+			mtls.GlobalMTLS = conf.GlobalMTLS
+
 			if mosnLogLevel, ok := flagToMosnLogLevel[flagLogLevel]; ok {
 				if mosnLogLevel == "OFF" {
 					log.GetErrorLoggerManagerInstance().Disable()

@@ -19,7 +19,9 @@ package streamproxy
 
 import (
 	"context"
+	"mosn.io/mosn/pkg/configmanager"
 	"net"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -76,6 +78,9 @@ func (p *proxy) OnData(buffer buffer.IoBuffer) api.FilterStatus {
 	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
 		log.DefaultLogger.Debugf("[%s proxy] [ondata] read data , len = %v", p.network, buffer.Len())
 	}
+	if p.requestInfo.UpstreamLocalAddress() == "" {
+		p.initializeUpstreamConnection()
+	}
 	bytesRecved := p.requestInfo.BytesReceived() + uint64(buffer.Len())
 	p.requestInfo.SetBytesReceived(bytesRecved)
 
@@ -88,7 +93,8 @@ func (p *proxy) OnNewConnection() api.FilterStatus {
 	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
 		log.DefaultLogger.Debugf("[%s proxy] [new conn] accept new connection", p.network)
 	}
-	return p.initializeUpstreamConnection()
+	//api.p.initializeUpstreamConnection()
+	return api.Continue
 }
 
 func (p *proxy) InitializeReadFilterCallbacks(cb api.ReadFilterCallbacks) {
@@ -98,7 +104,7 @@ func (p *proxy) InitializeReadFilterCallbacks(cb api.ReadFilterCallbacks) {
 	p.requestInfo.SetDownstreamRemoteAddress(p.readCallbacks.Connection().RemoteAddr())
 	p.requestInfo.SetDownstreamLocalAddress(p.readCallbacks.Connection().LocalAddr())
 
-	p.readCallbacks.Connection().SetReadDisable(true)
+	//p.readCallbacks.Connection().SetReadDisable(true)
 
 	// TODO: set downstream connection stats
 }
@@ -115,39 +121,59 @@ func (p *proxy) getUpstreamConnection(ctx types.LoadBalancerContext, snapshot ty
 func (p *proxy) initializeUpstreamConnection() api.FilterStatus {
 	clusterName := p.getUpstreamCluster()
 
-	clusterSnapshot := p.clusterManager.GetClusterSnapshot(context.Background(), clusterName)
+	var connectionData types.CreateConnectionData
+	addr := p.ctx.Value(types.ContextOriRemoteAddr)
+	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		log.DefaultLogger.Debugf("%s proxy connect to upstream clusterName = %s", p.network, clusterName)
+	}
+	if len(clusterName) == 0 && addr != nil {
+		ori := addr.(*net.TCPAddr)
+		if ori == nil {
+			if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+				log.DefaultLogger.Debugf("%s proxy connect to upstream origin addr = %+v", p.network, addr)
+			}
+			return api.Stop
+		}
+		if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+			log.DefaultLogger.Debugf("%s proxy connect to upstream origin destination = %s", p.network, ori.String())
+		}
+		connectionData = p.TCPConnForTransparentProxy(ori)
+	} else {
+		clusterSnapshot := p.clusterManager.GetClusterSnapshot(context.Background(), clusterName)
 
-	if clusterSnapshot == nil || reflect.ValueOf(clusterSnapshot).IsNil() {
-		p.requestInfo.SetResponseFlag(api.NoRouteFound)
-		p.onInitFailure(NoRoute)
+		if clusterSnapshot == nil || reflect.ValueOf(clusterSnapshot).IsNil() {
+			p.requestInfo.SetResponseFlag(api.NoRouteFound)
+			p.onInitFailure(NoRoute)
 
-		return api.Stop
+			return api.Stop
+		}
+
+		clusterInfo := clusterSnapshot.ClusterInfo()
+		clusterConnectionResource := clusterInfo.ResourceManager().Connections()
+
+		if !clusterConnectionResource.CanCreate() {
+			p.requestInfo.SetResponseFlag(api.UpstreamOverflow)
+			p.onInitFailure(ResourceLimitExceeded)
+
+			return api.Stop
+		}
+
+		ctx := &LbContext{
+			conn:    p.readCallbacks,
+			ctx:     p.ctx,
+			cluster: clusterInfo,
+		}
+		connectionData = p.getUpstreamConnection(ctx, clusterSnapshot)
+		if connectionData.Connection == nil {
+			p.requestInfo.SetResponseFlag(api.NoHealthyUpstream)
+			p.onInitFailure(NoHealthyUpstream)
+
+			return api.Stop
+		}
+		p.readCallbacks.SetUpstreamHost(connectionData.Host)
+		clusterConnectionResource.Increase()
 	}
 
-	clusterInfo := clusterSnapshot.ClusterInfo()
-	clusterConnectionResource := clusterInfo.ResourceManager().Connections()
-
-	if !clusterConnectionResource.CanCreate() {
-		p.requestInfo.SetResponseFlag(api.UpstreamOverflow)
-		p.onInitFailure(ResourceLimitExceeded)
-
-		return api.Stop
-	}
-
-	ctx := &LbContext{
-		conn:    p.readCallbacks,
-		ctx:     p.ctx,
-		cluster: clusterInfo,
-	}
-	connectionData := p.getUpstreamConnection(ctx, clusterSnapshot)
-	if connectionData.Connection == nil {
-		p.requestInfo.SetResponseFlag(api.NoHealthyUpstream)
-		p.onInitFailure(NoHealthyUpstream)
-
-		return api.Stop
-	}
-	p.readCallbacks.SetUpstreamHost(connectionData.Host)
-	clusterConnectionResource.Increase()
 	upstreamConnection := connectionData.Connection
 	upstreamConnection.AddConnectionEventListener(p.upstreamCallbacks)
 	upstreamConnection.FilterManager().AddReadFilter(p.upstreamCallbacks)
@@ -165,6 +191,76 @@ func (p *proxy) initializeUpstreamConnection() api.FilterStatus {
 	// TODO: update upstream stats
 
 	return api.Continue
+}
+
+func (p *proxy) TCPConnForTransparentProxy(addr *net.TCPAddr) types.CreateConnectionData {
+	finalUpstreamHost := addr.String()
+	listenerType := p.ctx.Value(types.ContextKeyListenerType)
+
+	mockInboundIp := os.Getenv("MOSN_TP_MOCK_INBOUND_IP_TO_LO")
+	if mockInboundIp == "" {
+		mockInboundIp = "true"
+	}
+	if mockInboundIp == "true" && listenerType == v2.INGRESS {
+		ipAndPort := strings.Split(finalUpstreamHost, ":")
+		if len(ipAndPort) >= 2 {
+			finalUpstreamHost = "127.0.0.1:" + ipAndPort[1]
+		} else {
+			finalUpstreamHost = "127.0.0.1"
+		}
+	}
+
+	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		log.DefaultLogger.Debugf("%s proxy connect to upstream origin finalUpstreamHost = %+v", p.network, finalUpstreamHost)
+	}
+
+	finalRemoteAddr, err := net.ResolveTCPAddr("tcp", finalUpstreamHost)
+	if err != nil {
+		log.DefaultLogger.Errorf("%s proxy connect to upstream resolve finalUpstream address %s error = %+v", p.network, finalUpstreamHost, err)
+	}
+
+	config := v2.Host{
+		HostConfig: v2.HostConfig{
+			Address: finalUpstreamHost,
+		},
+	}
+
+	tpc := p.getTransparentProxyCluster()
+
+	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		log.DefaultLogger.Debugf("%s proxy connect to upstream cluster = %+v", p.network, tpc)
+	}
+
+	newHost := cluster.NewSimpleHost(config, tpc.Snapshot().ClusterInfo())
+
+	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		log.DefaultLogger.Debugf("%s proxy connect to upstream hosts = %+v", p.network, newHost)
+	}
+
+	clientConn := network.NewClientConnection(nil, tpc.Snapshot().ClusterInfo().ConnectTimeout(),
+		tpc.Snapshot().ClusterInfo().TLSMng(), finalRemoteAddr, nil)
+	clientConn.SetBufferLimit(tpc.Snapshot().ClusterInfo().ConnBufferLimitBytes())
+
+	return types.CreateConnectionData{
+		Connection: clientConn,
+		Host:       newHost,
+	}
+}
+
+func (p *proxy) getTransparentProxyCluster() types.Cluster {
+	clusterConfig := v2.Cluster{
+		Name:   "transparent_cluster",
+		LbType: v2.LB_RANDOM,
+		LBSubSetConfig: v2.LBSubsetConfig{
+			FallBackPolicy: 1, // AnyEndPoint
+			SubsetSelectors: [][]string{
+				[]string{"version"},
+				[]string{"version", "zone"},
+			},
+		},
+		ConnBufferLimitBytes: configmanager.DefaultConnBufferLimitBytes,
+	}
+	return cluster.NewCluster(clusterConfig)
 }
 
 func (p *proxy) closeUpstreamConnection() {

@@ -86,6 +86,18 @@ const (
 	InterfaceNameHeader        string = "interface"
 )
 
+//dubbo response code
+const (
+	RESPONSE_WITH_EXCEPTION                  = 0
+	RESPONSE_VALUE                           = 1
+	RESPONSE_NULL_VALUE                      = 2
+	RESPONSE_WITH_EXCEPTION_WITH_ATTACHMENTS = 3
+	RESPONSE_VALUE_WITH_ATTACHMENTS          = 4
+	RESPONSE_NULL_VALUE_WITH_ATTACHMENTS     = 5
+)
+
+const HTTP_DUBBO_REQUEST_ID_NAME = "Dubbo-Request-Id"
+
 const (
 	EgressDubbo  string = "egress_dubbo"
 	IngressDubbo string = "ingress_dubbo"
@@ -98,6 +110,21 @@ const (
 type dubboStatusInfo struct {
 	Status byte
 	Msg    string
+}
+type Parameter struct {
+	Type  string      `json:"type"`
+	Value interface{} `json:"value"`
+}
+
+type DubboHttpRequestParams struct {
+	Attachments map[string]string `json:"attachments"`
+	Parameters  []Parameter       `json:"parameters"`
+}
+
+type DubboHttpResponseBody struct {
+	Attachments map[string]string `json:"attachments"`
+	Value       interface{}       `json:"value"`
+	Exception   string            `json:"exception"`
 }
 
 var (

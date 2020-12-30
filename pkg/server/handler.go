@@ -146,6 +146,18 @@ func (ch *connHandler) AddOrUpdateListener(lc *v2.Listener) (types.ListenerEvent
 		rawConfig.FilterChains[0].TLSContexts = lc.FilterChains[0].TLSContexts
 		rawConfig.FilterChains[0].TLSConfig = lc.FilterChains[0].TLSConfig
 		rawConfig.FilterChains[0].TLSConfigs = lc.FilterChains[0].TLSConfigs
+
+		// use global mtls config
+		if mtls.IsGlobalMTLS() {
+			if rawConfig.Type == "ingress" {
+				rawConfig.FilterChains[0].TLSContexts[0] = mtls.GlobalMTLS.ServerTLSContext
+				rawConfig.FilterChains[0].TLSConfig = &mtls.GlobalMTLS.ServerTLSContext
+			}
+			if rawConfig.Type == "egress" {
+				rawConfig.FilterChains[0].TLSContexts[0] = v2.TLSConfig{}
+			}
+		}
+
 		rawConfig.Inspector = lc.Inspector
 		mgr, err := mtls.NewTLSServerContextManager(rawConfig)
 		if err != nil {
@@ -439,6 +451,13 @@ func (al *activeListener) OnAccept(rawc net.Conn, useOriginalDst bool, oriRemote
 		}
 	}
 
+	_, ok := rawc.(*mtls.TLSConn)
+	if ok {
+		log.DefaultLogger.Debugf("[mtls] [server] use mtls conn l:%v, r:%v, listener:%v", rawc.LocalAddr().String(), rawc.RemoteAddr().String(), al.listener.Name())
+	} else {
+		log.DefaultLogger.Debugf("[mtls] [server] unuse mtls conn l:%v, r:%v, listener:%v", rawc.LocalAddr().String(), rawc.RemoteAddr().String(), al.listener.Name())
+	}
+
 	arc := newActiveRawConn(rawc, al)
 
 	// listener filter chain.
@@ -699,7 +718,13 @@ func (arc *activeRawConn) ContinueFilterChain(ctx context.Context, success bool)
 		}
 	}
 
-	arc.activeListener.newConnection(ctx, arc.rawc)
+	// TODO: handle hand_off_restored_destination_connections logic
+	if arc.useOriginalDst {
+		ctx = mosnctx.WithValue(ctx, types.ContextOriRemoteAddr, arc.oriRemoteAddr)
+		arc.UseOriginalDst(ctx)
+	} else {
+		arc.activeListener.newConnection(ctx, arc.rawc)
+	}
 
 }
 

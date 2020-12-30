@@ -26,6 +26,8 @@ import (
 
 const RequestTranscodeFail api.ResponseFlag = 0x2000
 
+const TransCoderKey = "transcoder"
+
 // Transcoder provide ability to transcoding request/response
 type Transcoder interface {
 	// Accept

@@ -25,6 +25,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -227,6 +228,13 @@ func builder(cfg map[string]interface{}) (types.MetricsSink, error) {
 
 	if promCfg.ExportUrl != "" {
 		return nil, errors.New("prometheus PushGateway mode currently unsupported")
+	}
+
+	customPort := os.Getenv("PROMETHEUS_PORT")
+	if len(customPort) > 0 {
+		if custPort, e := strconv.Atoi(customPort); e == nil && custPort > 0 {
+			promCfg.Port = custPort
+		}
 	}
 
 	if promCfg.Port == 0 {

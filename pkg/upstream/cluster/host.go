@@ -28,6 +28,7 @@ import (
 	"mosn.io/api"
 	v2 "mosn.io/mosn/pkg/config/v2"
 	"mosn.io/mosn/pkg/log"
+	"mosn.io/mosn/pkg/mtls"
 	"mosn.io/mosn/pkg/network"
 	"mosn.io/mosn/pkg/types"
 	"mosn.io/pkg/utils"
@@ -115,6 +116,9 @@ func (sh *simpleHost) Config() v2.Host {
 }
 
 func (sh *simpleHost) SupportTLS() bool {
+	if mtls.IsGlobalMTLS() {
+		return true
+	}
 	return IsSupportTLS() && !sh.tlsDisable && sh.ClusterInfo().TLSMng().Enabled()
 }
 

@@ -95,8 +95,11 @@ func (s *xStream) AppendData(context context.Context, data types.IoBuffer, endSt
 	if log.Proxy.GetLogLevel() >= log.DEBUG {
 		log.Proxy.Debugf(s.ctx, "[stream] [xprotocol] appendData, direction = %d, requestId = %d", s.direction, s.id)
 	}
+	// bugfix: s.fream maybe nil
+	if s.frame != nil {
+		s.frame.SetData(data)
 
-	s.frame.SetData(data)
+	}
 
 	if endStream {
 		s.endStream()

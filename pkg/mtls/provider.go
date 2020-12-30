@@ -18,9 +18,15 @@
 package mtls
 
 import (
+	"os"
+	"strconv"
+
 	"mosn.io/mosn/pkg/config/v2"
 	"mosn.io/mosn/pkg/types"
 )
+
+// GlobalMTLS is global mtls cofnig
+var GlobalMTLS v2.GlobalMTLSConfig
 
 // staticProvider is an implementation of types.Provider
 // staticProvider stored a static certificate
@@ -36,10 +42,22 @@ func (p *staticProvider) Empty() bool {
 	return p.tlsContext.server == nil
 }
 
+// IsGlobalMTLS return false by default
+func IsGlobalMTLS() bool {
+	isEnableMTLS, err := strconv.ParseBool(os.Getenv("ENABLE_GLOBAL_MTLS"))
+	if err != nil {
+		return false
+	}
+	if isEnableMTLS && GlobalMTLS.ClientTLSContext.Status && GlobalMTLS.ServerTLSContext.Status {
+		return true
+	}
+	return false
+}
+
 // NewProvider returns a types.Provider.
 // we support sds provider and static provider.
 func NewProvider(cfg *v2.TLSConfig) (types.TLSProvider, error) {
-	if !cfg.Status {
+	if !cfg.Status || !IsGlobalMTLS() {
 		return nil, nil
 	}
 	if cfg.SdsConfig != nil {

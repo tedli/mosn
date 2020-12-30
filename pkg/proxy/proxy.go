@@ -20,13 +20,15 @@ package proxy
 import (
 	"container/list"
 	"context"
+	"net"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/json-iterator/go"
 	"mosn.io/api"
-	v2 "mosn.io/mosn/pkg/config/v2"
+	"mosn.io/mosn/pkg/config/v2"
 	"mosn.io/mosn/pkg/configmanager"
 	mosnctx "mosn.io/mosn/pkg/context"
 	"mosn.io/mosn/pkg/log"
@@ -164,8 +166,21 @@ func (p *proxy) OnData(buf buffer.IoBuffer) api.FilterStatus {
 		if conn, ok := p.readCallbacks.Connection().RawConn().(*mtls.TLSConn); ok {
 			prot = conn.ConnectionState().NegotiatedProtocol
 		}
+		var oriRemoteAddr *net.TCPAddr
 		protocol, err := stream.SelectStreamFactoryProtocol(p.context, prot, buf.Bytes())
 		if err == stream.EAGAIN {
+			if p.context != nil {
+				val := p.context.Value(types.ContextOriRemoteAddr)
+				if val != nil {
+					oriRemoteAddr = val.(*net.TCPAddr)
+					if oriRemoteAddr != nil {
+						if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+							log.DefaultLogger.Debugf("proxy.auto", "[proxy] Protocol Auto proxy %s for again", oriRemoteAddr.String())
+						}
+						return api.Continue
+					}
+				}
+			}
 			return api.Stop
 		} else if err == stream.FAILED {
 			var size int
@@ -174,11 +189,29 @@ func (p *proxy) OnData(buf buffer.IoBuffer) api.FilterStatus {
 			} else {
 				size = buf.Len()
 			}
+			if p.context != nil {
+				val := p.context.Value(types.ContextOriRemoteAddr)
+				if val != nil {
+					oriRemoteAddr = val.(*net.TCPAddr)
+					if oriRemoteAddr != nil {
+						if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+							log.DefaultLogger.Debugf("proxy.auto", "[proxy] Protocol Auto proxy %s magic :%v", oriRemoteAddr.String(), buf.Bytes()[:size])
+						}
+						return api.Continue
+					}
+				}
+			}
 			log.DefaultLogger.Alertf("proxy.auto", "[proxy] Protocol Auto error magic :%v", buf.Bytes()[:size])
 			p.readCallbacks.Connection().Close(api.NoFlush, api.OnReadErrClose)
 			return api.Stop
 		}
 		if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		if oriRemoteAddr != nil && strings.EqualFold(p.config.DownstreamProtocol, "Http1") {
+			if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+				log.DefaultLogger.Debugf("proxy.auto", "[proxy] Protocol Auto proxy %s no http1", oriRemoteAddr.String())
+			}
+			return api.Continue
+		}
 			log.DefaultLogger.Debugf("[proxy] Protoctol Auto: %v", protocol)
 		}
 		p.serverStreamConn = stream.CreateServerStreamConnection(p.context, protocol, p.readCallbacks.Connection(), p)
