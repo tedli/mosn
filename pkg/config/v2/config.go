@@ -29,9 +29,8 @@ import (
 // Servers contains the listener, filter and so on
 // ClusterManager used to manage the upstream
 type MOSNConfig struct {
-	Servers         []ServerConfig       `json:"servers,omitempty"`          //server config
-	ClusterManager  ClusterManagerConfig `json:"cluster_manager,omitempty"`  //cluster config
-	ServiceRegistry ServiceRegistryInfo  `json:"service_registry,omitempty"` //service registry config, used by service discovery module
+	Servers        []ServerConfig       `json:"servers,omitempty"`         //server config
+	ClusterManager ClusterManagerConfig `json:"cluster_manager,omitempty"` //cluster config
 
 	//tracing config
 	Tracing             TracingConfig   `json:"tracing,omitempty"`
@@ -40,9 +39,9 @@ type MOSNConfig struct {
 	RawStaticResources  json.RawMessage `json:"static_resources,omitempty"`  //static_resources raw message
 	RawAdmin            json.RawMessage `json:"admin,omitempty"`             // admin raw message
 	Debug               PProfConfig     `json:"pprof,omitempty"`
-	Pid                 string          `json:"pid,omitempty"`    // pid file
-	Plugin              PluginConfig    `json:"plugin,omitempty"` // plugin config
-	Extends             []ExtendConfig       `json:"extends,omitempty"` // extend config
+	Pid                 string          `json:"pid,omitempty"`     // pid file
+	Plugin              PluginConfig    `json:"plugin,omitempty"`  // plugin config
+	Extends             []ExtendConfig  `json:"extends,omitempty"` // extend config
 
 	// global mtls config
 	GlobalMTLS GlobalMTLSConfig `json:"global_mtls"`

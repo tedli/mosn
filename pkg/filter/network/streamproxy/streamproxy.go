@@ -19,7 +19,6 @@ package streamproxy
 
 import (
 	"context"
-	"mosn.io/mosn/pkg/configmanager"
 	"net"
 	"os"
 	"reflect"
@@ -27,8 +26,10 @@ import (
 	"strings"
 	"time"
 
+	"mosn.io/mosn/pkg/configmanager"
+
 	"mosn.io/api"
-	"mosn.io/mosn/pkg/config/v2"
+	v2 "mosn.io/mosn/pkg/config/v2"
 	mosnctx "mosn.io/mosn/pkg/context"
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/network"
