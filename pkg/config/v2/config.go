@@ -31,6 +31,7 @@ import (
 type MOSNConfig struct {
 	Servers        []ServerConfig       `json:"servers,omitempty"`         //server config
 	ClusterManager ClusterManagerConfig `json:"cluster_manager,omitempty"` //cluster config
+	CloseGraceful  bool                 `json:"close_graceful,omitempty"`  // graceful switch, default false
 
 	//tracing config
 	Tracing             TracingConfig   `json:"tracing,omitempty"`

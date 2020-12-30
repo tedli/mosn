@@ -238,7 +238,7 @@ func (p *proxy) TCPConnForTransparentProxy(addr *net.TCPAddr) types.CreateConnec
 		log.DefaultLogger.Debugf("%s proxy connect to upstream hosts = %+v", p.network, newHost)
 	}
 
-	clientConn := network.NewClientConnection(nil, tpc.Snapshot().ClusterInfo().ConnectTimeout(),
+	clientConn := network.NewClientConnection(tpc.Snapshot().ClusterInfo().ConnectTimeout(),
 		tpc.Snapshot().ClusterInfo().TLSMng(), finalRemoteAddr, nil)
 	clientConn.SetBufferLimit(tpc.Snapshot().ClusterInfo().ConnBufferLimitBytes())
 
