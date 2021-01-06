@@ -37,7 +37,7 @@ var (
 		}
 		return root
 	}()
-
+	// /dubbo/metadata/{string:interface}/{string:version}/{string:group}/{string:side}/{string:application}
 	MetadataPathPattern = regexp.MustCompile(fmt.Sprintf(
 		"^/%s/%s/(?P<interface>[^ \f\n\r\t\v/]+)/(?P<version>[^ \f\n\r\t\v/]+)/(?P<group>[^ \f\n\r\t\v/]+)/(?P<side>[^ \f\n\r\t\v/]+)/(?P<application>[^ \f\n\r\t\v/]+)(?P<params>/.+)*$",
 		metadataRootPath, defaultMetadataPathTag))

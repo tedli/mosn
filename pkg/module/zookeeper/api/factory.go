@@ -29,7 +29,6 @@ var (
 	PathFilter      zookeeper.Filter = filters.NewPathFilter()
 	DataFilter      zookeeper.Filter = filters.NewDataFilter()
 	MetadataFilter  zookeeper.Filter = filters.NewMetadataFilters()
-	InstanceFilter  zookeeper.Filter = filters.NewInstanceFilter()
 	SessionFilter   zookeeper.Filter = zookeeper.NewSessionFilter()
 	ProvidersFilter zookeeper.Filter = filters.NewProvidersFilter()
 	RouterFilter    zookeeper.Filter = zookeeper.NewRouteFilter()

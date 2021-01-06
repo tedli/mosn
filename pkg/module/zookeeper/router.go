@@ -49,6 +49,8 @@ func newUpstream() *upstream {
 	}
 }
 
+
+
 func (u *upstream) DirectForward(*Context) (Downstream, *Context) {
 	u.handleRequestFinished.Done()
 	u.startToHandleResponse.Wait()
@@ -59,6 +61,13 @@ func (u *upstream) ModifyAndSend(ctx *Context, message interface{}) (Downstream,
 	ctx.Payload = message
 	ctx.Modified = true
 	return u.DirectForward(ctx)
+}
+
+func (u *upstream) Passthrough() {
+	go func() {
+		d, r := u.DirectForward(nil)
+		d.DirectReply(r)
+	}()
 }
 
 type downstream struct {
@@ -156,6 +165,7 @@ type Downstream interface {
 }
 
 type Upstream interface {
+	Passthrough()
 	DirectForward(*Context) (Downstream, *Context)
 	ModifyAndSend(ctx *Context, message interface{}) (Downstream, *Context)
 }
@@ -203,6 +213,7 @@ const (
 	pathElement          = `[^ \f\n\r\t\v\\}/]`
 	stringCapturePattern = `(?P<%s>[^ \f\n\r\t\v/]+)`
 	intCapturePattern    = `(?P<%s>\d+)`
+	regexCapturePattern = `(?P<%s>%s)`
 )
 
 var (
@@ -217,17 +228,19 @@ type capture struct {
 	paramName  string
 	paramType  string
 	matchIndex int
+	paramRegex string
 }
 
 const (
 	paramTypeString = "string"
 	paramTypeInt    = "int"
+	paramTypeRegex = "regex"
 )
 
 func pathToRegexp(path string) (patternStr string, pattern *regexp.Regexp, captures map[string]*capture, err error) {
 	captures = make(map[string]*capture)
 	rawPattern := paramPattern.ReplaceAllStringFunc(path, func(param string) string {
-		param = strings.Trim(param, "{}")
+		param = strings.Trim(param, "<>")
 		parts := strings.Split(param, ":")
 		c := new(capture)
 		if lp := len(parts); lp < 2 {
@@ -239,6 +252,14 @@ func pathToRegexp(path string) (patternStr string, pattern *regexp.Regexp, captu
 				return ""
 			}
 			c.paramType = parts[0]
+		} else if lp == 3 {
+			if t := parts[0]; t != paramTypeRegex {
+				err = ErrUnsupportedParamType
+				return ""
+			}
+			c.paramName = parts[1]
+			c.paramType = paramTypeRegex
+			c.paramRegex = parts[2]
 		}
 		if _, exist := captures[c.paramName]; exist {
 			err = ErrSameParamNameMoreThanOnce
@@ -247,6 +268,9 @@ func pathToRegexp(path string) (patternStr string, pattern *regexp.Regexp, captu
 		captures[c.paramName] = c
 		if c.paramType == paramTypeInt {
 			return fmt.Sprintf(intCapturePattern, c.paramName)
+		}
+		if c.paramType == paramTypeRegex {
+			return fmt.Sprintf(regexCapturePattern, c.paramName, c.paramRegex)
 		}
 		return fmt.Sprintf(stringCapturePattern, c.paramName)
 	})

@@ -20,7 +20,7 @@ package zookeeper
 import "testing"
 
 func TestRoute(t *testing.T) {
-	if e := Register(OpCreate, "/services/demo-service-provider2/{string:host}:{int:port}", func(u Upstream, c *Context) {
+	if e := Register(OpCreate, "/services/demo-service-provider2/{string:host}:{int:port}/{regex:revision:[a-fA-F0-9]{32}}", func(u Upstream, c *Context) {
 		var port int
 		exist, err := c.GetParam("port", &port)
 		if err != nil {
@@ -34,11 +34,18 @@ func TestRoute(t *testing.T) {
 	}
 	ee, ms := resolveRoute(&Context{
 		OpCode: OpCreate,
-		Path:   "/services/demo-service-provider2/192.168.38.1:20888",
+		Path:   "/services/demo-service-provider2/192.168.38.1:20888/D95B6D3E1EA42289CE11BAA3EBDF2CCB",
 	})
 	if ee == nil {
 		t.Fatalf("not found")
 	}
 	ps := prepareParams(ee, ms)
 	t.Logf("ps: %#v", ps)
+	c := &Context{params: ps}
+	var port int
+	if exist, err := c.GetParam("port", &port); err != nil {
+		t.Fatalf("getparam: %s", err)
+	} else if !exist {
+		t.Fatalf("getparam, not exist")
+	}
 }

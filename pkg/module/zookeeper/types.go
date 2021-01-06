@@ -220,6 +220,7 @@ func (c Context) GetParam(name string, receiver interface{}) (exist bool, err er
 	vv := reflect.ValueOf(value)
 	if vv.Type().AssignableTo(rv.Type()) && rv.CanSet() {
 		rv.Set(reflect.ValueOf(value))
+		return
 	}
 	err = ErrTypeMismatched
 	return

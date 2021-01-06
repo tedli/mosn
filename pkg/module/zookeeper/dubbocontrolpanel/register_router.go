@@ -27,5 +27,28 @@ var (
 )
 
 func init() {
-	zookeeper.MustRegister(zookeeper.OpCreate, "/services/{string:application}/{string:host}:{int:port}", handleProviderInstanceRegister)
+	zookeeper.MustRegister(
+		zookeeper.OpCreate,
+		"/services/{string:application}/{string:host}:{int:port}",
+		handleProviderInstanceRegister)
+
+	zookeeper.MustRegister(
+		zookeeper.OpGetData,
+		"/services/{string:application}/{string:host}:{int:port}",
+		handleConsumerInstanceResolve)
+
+	zookeeper.MustRegister(
+		zookeeper.OpGetChildren2,
+		"/dubbo/mapping/{string:interface}",
+		handleConsumerListProviders)
+
+	zookeeper.MustRegister(
+		zookeeper.OpCreate,
+		"/dubbo/metadata/{string:interface}/{string:version}/{string:group}/provider/{string:application}",
+		handleProviderCreateMetadata)
+
+	zookeeper.MustRegister(
+		zookeeper.OpCreate,
+		"/dubbo/metadata/{string:interface}/{string:version}/{string:group}/consumer/{string:application}",
+		handleConsumerCreateMetadata)
 }

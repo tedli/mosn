@@ -30,6 +30,7 @@ func handleProviderInstanceRegister(upstream zookeeper.Upstream, request *zookee
 	var serviceInstance dubbo.ServiceInstance
 	if err := json.Unmarshal(request.Data, &serviceInstance); err != nil {
 		log.DefaultLogger.Errorf("zookeeper.filters.instance.Invoke, unmarshal service instance failed, %s", err)
+		upstream.Passthrough()
 		return
 	}
 	var application string
