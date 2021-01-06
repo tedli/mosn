@@ -44,6 +44,7 @@ import (
 	_ "mosn.io/mosn/pkg/filter/stream/transcoder/http2bolt"
 	_ "mosn.io/mosn/pkg/metrics/sink"
 	_ "mosn.io/mosn/pkg/metrics/sink/prometheus"
+	_ "mosn.io/mosn/pkg/module/zookeeper/dubbocontrolpanel"
 	_ "mosn.io/mosn/pkg/network"
 	_ "mosn.io/mosn/pkg/protocol"
 	_ "mosn.io/mosn/pkg/protocol/http/conv"

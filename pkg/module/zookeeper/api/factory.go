@@ -32,6 +32,7 @@ var (
 	InstanceFilter  zookeeper.Filter = filters.NewInstanceFilter()
 	SessionFilter   zookeeper.Filter = zookeeper.NewSessionFilter()
 	ProvidersFilter zookeeper.Filter = filters.NewProvidersFilter()
+	RouterFilter    zookeeper.Filter = zookeeper.NewRouteFilter()
 )
 
 func GetApplicationName() (name string) {

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"sync"
 
 	"github.com/go-zookeeper/zk"
@@ -104,6 +105,8 @@ var (
 		OpError:           "Error",
 		OpWatcherEvent:    "WatcherEvent",
 	}
+
+	ErrTypeMismatched = errors.New("type mismatched")
 )
 
 func (o OpCode) String() string {
@@ -194,7 +197,32 @@ type Context struct {
 	Watch                                  bool
 	Payload                                interface{} // the final payload layout if we modified the request or respone
 
+	route   *upstream
+	params  map[string]interface{}
 	session *sync.Map // the request, response mapping, you should never play with this
+}
+
+func (c Context) MustGetParam(name string, receiver interface{}) {
+	if _, err := c.GetParam(name, receiver); err != nil {
+		panic(err)
+	}
+}
+
+func (c Context) GetParam(name string, receiver interface{}) (exist bool, err error) {
+	if c.params == nil {
+		return
+	}
+	var value interface{}
+	if value, exist = c.params[name]; !exist {
+		return
+	}
+	rv := reflect.Indirect(reflect.ValueOf(receiver))
+	vv := reflect.ValueOf(value)
+	if vv.Type().AssignableTo(rv.Type()) && rv.CanSet() {
+		rv.Set(reflect.ValueOf(value))
+	}
+	err = ErrTypeMismatched
+	return
 }
 
 func modifyIfNeeded(ctx *Context) (ReadWriteReseter, error) {

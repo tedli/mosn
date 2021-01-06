@@ -46,8 +46,9 @@ func (f factory) CreateFilterChain(_ context.Context, callbacks api.NetWorkFilte
 		zkapi.SessionFilter,
 		zkapi.PathFilter,
 		zkapi.DataFilter,
+		zkapi.RouterFilter,
 		zkapi.MetadataFilter,
-		zkapi.InstanceFilter,
+		// zkapi.InstanceFilter,
 		zkapi.ProvidersFilter,
 		zkapi.DebugFilter,
 	})
