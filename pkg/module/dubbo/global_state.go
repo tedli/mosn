@@ -150,6 +150,11 @@ func UpdateEndpointsByApplication(application string, rawEndpoints []string) {
 		}
 	}
 	applicationToEndpoints.Store(application, endpoints)
+	go func() {
+		if err := UpdateAllConfig(); err != nil {
+			log.DefaultLogger.Errorf("dubbo.globalState.UpdateEndpointsByApplication, update xds failed, %s", err)
+		}
+	}()
 }
 
 func UpdateClustersByProvider(application, revision string, serviceInfo []ServiceInfo) {
