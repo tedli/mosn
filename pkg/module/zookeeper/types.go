@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zookeeper
 
 import (
@@ -33,7 +50,6 @@ const (
 	ZookeeperFinishedFiltering IOStateCondition = 2
 
 	Uint32Size = 4
-	
 )
 
 type OpCode int
@@ -112,9 +128,9 @@ type serializer interface {
 
 type CreateRequest struct {
 	XidAndOpCode Untouched
-	Path string
-	Data []byte
-	TheRest Untouched
+	Path         string
+	Data         []byte
+	TheRest      Untouched
 }
 
 func (cr *CreateRequest) SetPath(path string) {
@@ -127,7 +143,7 @@ func (cr *CreateRequest) SetData(data []byte) {
 
 type CreateResponse struct {
 	XidZxidAndErrCode Untouched
-	Path string
+	Path              string
 }
 
 func (cr *CreateResponse) SetPath(path string) {
@@ -136,8 +152,8 @@ func (cr *CreateResponse) SetPath(path string) {
 
 type GetDataRequest struct {
 	XidAndOpCode Untouched
-	Path string
-	TheRest Untouched
+	Path         string
+	TheRest      Untouched
 }
 
 func (gdr *GetDataRequest) SetPath(path string) {
@@ -146,8 +162,8 @@ func (gdr *GetDataRequest) SetPath(path string) {
 
 type GetDataResponse struct {
 	XidZxidAndErrCode Untouched
-	Data []byte
-	TheRest Untouched
+	Data              []byte
+	TheRest           Untouched
 }
 
 func (gdr *GetDataResponse) SetData(data []byte) {
@@ -157,28 +173,28 @@ func (gdr *GetDataResponse) SetData(data []byte) {
 type GetChildren2Response struct {
 	DeltaLength
 	XidZxidAndErrCode Untouched
-	Children []string
-	Stat Untouched
+	Children          []string
+	Stat              Untouched
 }
 
 type Context struct {
-	Buffer                                 ReadWriteReseter  // the buffer object
-	RawPayload                             []byte  // content of buffer buffer
+	Buffer                                 ReadWriteReseter // the buffer object
+	RawPayload                             []byte           // content of buffer buffer
 	Xid                                    int
 	Zxid                                   uint64
 	OpCode                                 OpCode
-	Error                                  error  // error responsed from zk, not errors occurred in golang
-	Path                                   string  // the path we want it to be
-	OriginalPath                           string  // the path it used to be
-	Data                                   []byte  // the data
-	Value                                  interface{}  // the unmarshaled object from data
+	Error                                  error       // error responsed from zk, not errors occurred in golang
+	Path                                   string      // the path we want it to be
+	OriginalPath                           string      // the path it used to be
+	Data                                   []byte      // the data
+	Value                                  interface{} // the unmarshaled object from data
 	Modified                               bool
-	PathBegin, PathEnd, DataBegin, DataEnd int  // the index in the raw payload
-	Request                                *Context  // if this is a response, it's the corresponding request
+	PathBegin, PathEnd, DataBegin, DataEnd int      // the index in the raw payload
+	Request                                *Context // if this is a response, it's the corresponding request
 	Watch                                  bool
-	Payload interface{}  // the final payload layout if we modified the request or respone
+	Payload                                interface{} // the final payload layout if we modified the request or respone
 
-	session *sync.Map  // the request, response mapping, you should never play with this
+	session *sync.Map // the request, response mapping, you should never play with this
 }
 
 func modifyIfNeeded(ctx *Context) (ReadWriteReseter, error) {
@@ -190,7 +206,7 @@ func modifyIfNeeded(ctx *Context) (ReadWriteReseter, error) {
 	var deltaLength int
 	if needSetPath {
 		setNewPath.SetPath(ctx.Path)
-		deltaLength += len(ctx.Path) - (ctx.PathEnd - ctx.PathBegin) 
+		deltaLength += len(ctx.Path) - (ctx.PathEnd - ctx.PathBegin)
 	}
 	setNewData, needSetData := payload.(dataSetter)
 	if needSetData {
@@ -199,7 +215,7 @@ func modifyIfNeeded(ctx *Context) (ReadWriteReseter, error) {
 			serialize = jsoniter.ConfigCompatibleWithStandardLibrary
 		}
 		data, err := serialize.Marshal(ctx.Value)
-		if  err != nil {
+		if err != nil {
 			log.DefaultLogger.Errorf("zookeeper.modify, marshal data failed, %s", err)
 			return nil, err
 		}
@@ -216,7 +232,7 @@ func modifyIfNeeded(ctx *Context) (ReadWriteReseter, error) {
 		log.DefaultLogger.Errorf("zookeeper.modify, marshal payload failed, %s", err)
 		return nil, err
 	}
-	binary.BigEndian.PutUint32(buffer[:Uint32Size], uint32(bufferLength - Uint32Size))
+	binary.BigEndian.PutUint32(buffer[:Uint32Size], uint32(bufferLength-Uint32Size))
 	return bytes.NewBuffer(buffer), nil
 }
 

@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dubbo
 
 import (
@@ -5,7 +22,7 @@ import (
 )
 
 var (
-	ServicePathPattern = regexp.MustCompile(`^/services/(?P<application>[^ \f\n\r\t\v/]+)/(?P<host>[^ \f\n\r\t\v/]+):(?P<port>\d+)$`)
+	ServicePathPattern   = regexp.MustCompile(`^/services/(?P<application>[^ \f\n\r\t\v/]+)/(?P<host>[^ \f\n\r\t\v/]+):(?P<port>\d+)$`)
 	InstancesPathPattern = regexp.MustCompile(`^/services/(?P<application>[^ \f\n\r\t\v/]+)$`)
 
 	applicationNameIndex, hostIndex, portIndex = func() (application, host, port int) {
@@ -89,14 +106,14 @@ type URISpec struct {
 }
 
 type URLParams struct {
-	Dubbo struct{
+	Dubbo struct {
 		Version string `json:"version"`
-		Dubbo string `json:"dubbo"`
-		Port string `json:"port"`
+		Dubbo   string `json:"dubbo"`
+		Port    string `json:"port"`
 	} `json:"dubbo"`
 }
 
 type Endpoint struct {
-	Port int `json:"port"`
+	Port     int    `json:"port"`
 	Protocol string `json:"protocol"`
 }

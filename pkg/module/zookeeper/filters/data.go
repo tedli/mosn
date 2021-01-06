@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package filters
 
 import (
@@ -26,7 +43,7 @@ func (data) HandleRequest(ctx *zookeeper.Context) {
 
 func handleRequestData(ctx *zookeeper.Context) {
 	pathLength := len(ctx.Path)
-	begin := 4 * zookeeper.Uint32Size + pathLength
+	begin := 4*zookeeper.Uint32Size + pathLength
 	handleDataInternal(ctx, begin)
 }
 
@@ -59,12 +76,12 @@ func handleDataInternal(ctx *zookeeper.Context, begin int) {
 		log.DefaultLogger.Errorf("zookeeper.filters.path.handleRequestData, buffer too short")
 		return
 	}
-	dataLenght := int(binary.BigEndian.Uint32(buffer[begin : begin + zookeeper.Uint32Size]))
+	dataLenght := int(binary.BigEndian.Uint32(buffer[begin : begin+zookeeper.Uint32Size]))
 	if begin+zookeeper.Uint32Size+dataLenght > length {
 		log.DefaultLogger.Errorf("zookeeper.filters.path.handleRequestData, buffer too short for data")
 		return
 	}
-	ctx.DataBegin = begin+zookeeper.Uint32Size
-	ctx.DataEnd = begin+zookeeper.Uint32Size+dataLenght
-	ctx.Data = buffer[ctx.DataBegin : ctx.DataEnd]
+	ctx.DataBegin = begin + zookeeper.Uint32Size
+	ctx.DataEnd = begin + zookeeper.Uint32Size + dataLenght
+	ctx.Data = buffer[ctx.DataBegin:ctx.DataEnd]
 }
