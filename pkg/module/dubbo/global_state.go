@@ -149,6 +149,19 @@ func UpdateEndpointsByApplication(application string, rawEndpoints []string) {
 			endpoints.Store(key, endpoint)
 		}
 	}
+	oldEPs, exist := applicationToEndpoints.Load(application)
+	if exist {
+		oldEndpoints := oldEPs.(*sync.Map)
+		endpoints.Range(func(k, v interface{}) bool {
+			key := k.(string)
+			value := v.(*ProviderEndpoint)
+			if oldEP, exist := oldEndpoints.Load(key); exist {
+				oldEndpoint := oldEP.(*ProviderEndpoint)
+				value.Revision = oldEndpoint.Revision
+			}
+			return true
+		})
+	}
 	applicationToEndpoints.Store(application, endpoints)
 	go func() {
 		if err := UpdateAllConfig(); err != nil {
