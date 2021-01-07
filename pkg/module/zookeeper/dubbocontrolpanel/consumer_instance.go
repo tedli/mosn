@@ -48,6 +48,6 @@ func handleConsumerInstanceResolve(upstream zookeeper.Upstream, request *zookeep
 	content := response.RawPayload
 	downstream.ModifyAndReply(response, &zookeeper.GetDataResponse{
 		XidZxidAndErrCode: zookeeper.ResponseHeader(content),
-		TheRest:           zookeeper.OriginalContentView(content, response.DataEnd, zookeeper.Undefined),
+		TheRest:           zookeeper.TheRest(content, response.DataEnd),
 	})
 }

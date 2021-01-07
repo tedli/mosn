@@ -53,11 +53,22 @@ func GetDubboOriginalPort() int {
 	return dubboOriginalPort
 }
 
+const (
+	portPathPattern    = `^(\S+):%d$`
+	portReplacePattern = "$1:%d"
+)
+
+func RestoreInstancePathPort(path string) string {
+	portPattern := fmt.Sprintf(portReplacePattern, dubboExposePort)
+	pattern := regexp.MustCompile(fmt.Sprintf(portPathPattern, dubboOriginalPort))
+	return pattern.ReplaceAllString(path, portPattern)
+}
+
 func ModifyInstanceInfo(path string, serviceInstance *ServiceInstance) (
 	modifiedPath string, modifiedServiceInstance *ServiceInstance) {
 
-	portPattern := fmt.Sprintf("$1:%d", dubboExposePort)
-	pattern, err := regexp.Compile(fmt.Sprintf(`^(\S+):%d$`, serviceInstance.Port))
+	portPattern := fmt.Sprintf(portReplacePattern, dubboExposePort)
+	pattern, err := regexp.Compile(fmt.Sprintf(portPathPattern, serviceInstance.Port))
 	if err != nil {
 		log.DefaultLogger.Errorf("dubbo.instance.ModifyInstanceInfo, compile path port replace pattern failed, %s", err)
 	} else {

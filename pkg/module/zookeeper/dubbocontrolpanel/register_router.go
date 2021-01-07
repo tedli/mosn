@@ -38,6 +38,11 @@ func init() {
 		handleConsumerInstanceResolve)
 
 	zookeeper.MustRegister(
+		zookeeper.OpDelete,
+		"/services/<string:application>/<string:host>:<int:port>",
+		handleProviderInstanceDeregister)
+
+	zookeeper.MustRegister(
 		zookeeper.OpGetChildren2,
 		"/dubbo/mapping/<string:interface>",
 		handleConsumerListProviders)

@@ -55,7 +55,7 @@ func handleProviderInstanceRegister(upstream zookeeper.Upstream, request *zookee
 	request.Path, request.Value = dubbo.ModifyInstanceInfo(request.Path, &serviceInstance)
 	downstream, response := upstream.ModifyAndSend(request, &zookeeper.CreateRequest{
 		XidAndOpCode: zookeeper.RequestHeader(request.RawPayload),
-		TheRest:      zookeeper.OriginalContentView(request.RawPayload, request.DataEnd, zookeeper.Undefined),
+		TheRest:      zookeeper.TheRest(request.RawPayload, request.DataEnd),
 	})
 	if response.Error != nil {
 		return
@@ -67,5 +67,15 @@ func handleProviderInstanceRegister(upstream zookeeper.Upstream, request *zookee
 	response.PathEnd = int(binary.BigEndian.Uint32(content[5*zookeeper.Uint32Size : 6*zookeeper.Uint32Size]))
 	downstream.ModifyAndReply(response, &zookeeper.CreateResponse{
 		XidZxidAndErrCode: zookeeper.ResponseHeader(content),
+	})
+}
+
+func handleProviderInstanceDeregister(upstream zookeeper.Upstream, request *zookeeper.Context) {
+	path := request.Path
+	request.OriginalPath = path
+	request.Path = dubbo.RestoreInstancePathPort(path)
+	upstream.ModifyAndSend(request, &zookeeper.DeleteRequest{
+		XidAndOpCode: zookeeper.RequestHeader(request.RawPayload),
+		TheRest:      zookeeper.TheRest(request.RawPayload, request.PathEnd),
 	})
 }

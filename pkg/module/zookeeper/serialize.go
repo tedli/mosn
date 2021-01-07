@@ -26,6 +26,14 @@ import (
 	"github.com/go-zookeeper/zk"
 )
 
+func TheRest(content []byte, begin int) Untouched {
+	return &originalContentView{
+		content: content,
+		begin:   begin,
+		end:     Undefined,
+	}
+}
+
 func OriginalContentView(content []byte, begin, end int) Untouched {
 	return &originalContentView{
 		content: content,
