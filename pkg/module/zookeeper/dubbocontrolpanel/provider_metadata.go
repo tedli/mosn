@@ -28,9 +28,6 @@ func handleProviderCreateMetadata(upstream zookeeper.Upstream, request *zookeepe
 }
 
 func handleProviderCreateMetadataRevision(upstream zookeeper.Upstream, request *zookeeper.Context) {
-	if request.Data == nil || len(request.Data) <= 0 {
-		return
-	}
 	var metainfo dubbo.MetadataInfo
 	if err := json.Unmarshal(request.Data, &metainfo); err != nil {
 		log.DefaultLogger.Errorf("handleProviderCreateMetadataRevision, unmarshal metainfo failed, data: %s, %s", string(request.Data), err)

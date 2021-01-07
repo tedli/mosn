@@ -46,6 +46,7 @@ func handleProviderInstanceRegister(upstream zookeeper.Upstream, request *zookee
 	}
 	request.Value = &serviceInstance
 	dubbo.SetDubboOriginalPort(port)
+	request.MustGetParam("application", &application)
 	dubbo.UpdateEndpointsByApplication(application, []string{fmt.Sprintf("127.0.0.1:%d", port)})
 	if log.DefaultLogger.GetLogLevel() >= log.TRACE {
 		log.DefaultLogger.Tracef("zookeeper.filters.instance.Invoke, application name: %s, address: %s, port: %d",

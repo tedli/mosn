@@ -59,8 +59,8 @@ func (u *upstream) DirectForward(*Context) (Downstream, *Context) {
 }
 
 func (u *upstream) ModifyAndSend(ctx *Context, message interface{}) (Downstream, *Context) {
-	ctx.Payload = message
-	ctx.Modified = true
+	ctx.payload = message
+	ctx.modified = true
 	return u.DirectForward(ctx)
 }
 
@@ -93,8 +93,8 @@ func (d *downstream) DirectReply(ctx *Context) {
 }
 
 func (d *downstream) ModifyAndReply(ctx *Context, message interface{}) {
-	ctx.Payload = message
-	ctx.Modified = true
+	ctx.payload = message
+	ctx.modified = true
 	d.DirectReply(ctx)
 }
 

@@ -32,6 +32,8 @@ var (
 	MetadataEndpointKey = "dubbo.endpoints"
 	MetadataRevisionKey = "dubbo.metadata.revision"
 
+	ParameterApplicationKey = "application"
+
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 

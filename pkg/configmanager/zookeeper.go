@@ -36,11 +36,11 @@ func ZookeeperConfigLoad(zookeerAddress string) *v2.MOSNConfig {
 					{
 						Addr: &net.TCPAddr{
 							IP:   net.ParseIP("0.0.0.0"),
-							Port: 2181,
+							Port: 2182,
 						},
 						ListenerConfig: v2.ListenerConfig{
 							Name:       "litener",
-							AddrConfig: "0.0.0.0:2181",
+							AddrConfig: "0.0.0.0:2182",
 							BindToPort: true,
 							FilterChains: []v2.FilterChain{
 								{

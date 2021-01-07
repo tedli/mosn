@@ -17,58 +17,6 @@
 
 package dubbo
 
-import (
-	"regexp"
-)
-
-var (
-	ServicePathPattern   = regexp.MustCompile(`^/services/(?P<application>[^ \f\n\r\t\v/]+)/(?P<host>[^ \f\n\r\t\v/]+):(?P<port>\d+)$`)
-	InstancesPathPattern = regexp.MustCompile(`^/services/(?P<application>[^ \f\n\r\t\v/]+)$`)
-
-	applicationNameIndex, hostIndex, portIndex = func() (application, host, port int) {
-		names := ServicePathPattern.SubexpNames()
-		for index, name := range names {
-			if name == "application" {
-				application = index
-			} else if name == "host" {
-				host = index
-			} else if name == "port" {
-				port = index
-			}
-		}
-		return
-	}()
-
-	providerApplicationNameIndex = func() (application int) {
-		names := InstancesPathPattern.SubexpNames()
-		for index, name := range names {
-			if name == "application" {
-				application = index
-				break
-			}
-		}
-		return
-	}()
-)
-
-func GetProviderApplicationFromMatches(matches []string) (application string) {
-	if length := len(matches); length <= providerApplicationNameIndex {
-		return
-	}
-	application = matches[providerApplicationNameIndex]
-	return
-}
-
-func GetHostPortFromMatches(matches []string) (application, host, port string) {
-	if length := len(matches); length <= portIndex {
-		return
-	}
-	application = matches[applicationNameIndex]
-	host = matches[hostIndex]
-	port = matches[portIndex]
-	return
-}
-
 // C:\Users\lizhen\.m2\repository\org\apache\curator\curator-x-discovery\4.0.1\curator-x-discovery-4.0.1.jar!\org\apache\curator\x\discovery\ServiceInstance.class
 type ServiceInstance struct {
 	Name                string                   `json:"name"`

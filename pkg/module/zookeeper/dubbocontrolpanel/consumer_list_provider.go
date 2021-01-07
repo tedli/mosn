@@ -18,7 +18,8 @@ func handleConsumerListProviders(upstream zookeeper.Upstream, request *zookeeper
 }
 
 func handleConsumerListProviderApplications(upstream zookeeper.Upstream, request *zookeeper.Context) {
-	content := request.RawPayload
+	_, response := upstream.DirectForward(request)
+	content := response.RawPayload
 	children := zookeeper.ParseChildren(content)
 	request.Value = children
 	var application string

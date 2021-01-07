@@ -191,15 +191,15 @@ type Context struct {
 	OriginalPath                           string      // the path it used to be
 	Data                                   []byte      // the data
 	Value                                  interface{} // the unmarshaled object from data
-	Modified                               bool
-	PathBegin, PathEnd, DataBegin, DataEnd int      // the index in the raw payload
-	Request                                *Context // if this is a response, it's the corresponding request
+	PathBegin, PathEnd, DataBegin, DataEnd int         // the index in the raw payload
+	Request                                *Context    // if this is a response, it's the corresponding request
 	Watch                                  bool
-	Payload                                interface{} // the final payload layout if we modified the request or respone
 
-	route   *upstream
-	params  map[string]interface{}
-	session *sync.Map // the request, response mapping, you should never play with this
+	modified bool
+	payload  interface{} // the final payload layout if we modified the request or respone
+	route    *upstream
+	params   map[string]interface{}
+	session  *sync.Map // the request, response mapping, you should never play with this
 }
 
 func (c Context) MustGetParam(name string, receiver interface{}) {
@@ -227,10 +227,10 @@ func (c Context) GetParam(name string, receiver interface{}) (exist bool, err er
 }
 
 func modifyIfNeeded(ctx *Context) (ReadWriteReseter, error) {
-	if ctx.Payload == nil || !ctx.Modified {
+	if ctx.payload == nil || !ctx.modified {
 		return ctx.Buffer, nil
 	}
-	payload := ctx.Payload
+	payload := ctx.payload
 	setNewPath, needSetPath := payload.(pathSetter)
 	var deltaLength int
 	if needSetPath {
