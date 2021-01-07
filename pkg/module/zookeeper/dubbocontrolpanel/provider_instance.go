@@ -74,6 +74,8 @@ func handleProviderInstanceDeregister(upstream zookeeper.Upstream, request *zook
 	path := request.Path
 	request.OriginalPath = path
 	request.Path = dubbo.RestoreInstancePathPort(path)
+	a := int(binary.BigEndian.Uint32(request.RawPayload[request.PathEnd:]))
+	log.DefaultLogger.Errorf("la;lfkjad;lkfja;dkljfa;lsdjf;kla, version: %d", a)
 	upstream.ModifyAndSend(request, &zookeeper.DeleteRequest{
 		XidAndOpCode: zookeeper.RequestHeader(request.RawPayload),
 		TheRest:      zookeeper.TheRest(request.RawPayload, request.PathEnd),

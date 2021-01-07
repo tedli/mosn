@@ -153,17 +153,14 @@ func (cr *CreateResponse) SetPath(path string) {
 	cr.Path = path
 }
 
-type GetDataRequest pathAndRestRequest
-type DeleteRequest pathAndRestRequest
-
-type pathAndRestRequest struct {
+type DeleteRequest struct {
 	XidAndOpCode Untouched
 	Path         string
 	TheRest      Untouched
 }
 
-func (parr *pathAndRestRequest) SetPath(path string) {
-	parr.Path = path
+func (dr *DeleteRequest) SetPath(path string) {
+	dr.Path = path
 }
 
 type GetDataResponse struct {
