@@ -304,18 +304,6 @@ type Filter interface {
 	HandleResponse(ctx *Context)
 }
 
-type FilterFactory interface {
-	Create() Filter
-}
-
-func RegisterZookeeperFilter(id string, filter Filter) {
-
-}
-
-func ResolveFilter(id string) Filter {
-	return nil
-}
-
 func ParseErrorCode(code int) error {
 	err, known := errCodeErrorMapping[code]
 	if known {
