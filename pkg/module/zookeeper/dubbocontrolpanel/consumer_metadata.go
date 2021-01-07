@@ -14,7 +14,6 @@ func handleConsumerCreateMetadata(upstream zookeeper.Upstream, request *zookeepe
 	var parameters map[string]string
 	if err := json.Unmarshal(request.Data, &parameters); err != nil {
 		log.DefaultLogger.Errorf("zookeeper.filters.metadata.Invoke, unmarshal consumer parameters failed, %s", err)
-		upstream.Passthrough()
 		return
 	}
 	request.Value = parameters
@@ -25,6 +24,20 @@ func handleConsumerCreateMetadata(upstream zookeeper.Upstream, request *zookeepe
 	if log.DefaultLogger.GetLogLevel() >= log.TRACE {
 		log.DefaultLogger.Tracef("zookeeper.filters.metadata.Invoke, application name: %s", application)
 	}
-	downstream, response := upstream.DirectForward(request)
-	downstream.DirectReply(response)
+}
+
+func handleConsumerGetProviderMetadataRevision(upstream zookeeper.Upstream, request *zookeeper.Context) {
+	if request.Data == nil || len(request.Data) <= 0 {
+		return
+	}
+	var metainfo dubbo.MetadataInfo
+	if err := json.Unmarshal(request.Data, &metainfo); err != nil {
+		log.DefaultLogger.Errorf("handleConsumerGetProviderMetadataRevision, unmarshal metainfo failed, data: %s, %s", string(request.Data), err)
+		return
+	}
+	services := make([]dubbo.ServiceInfo, 0, len(metainfo.Services))
+	for _, service := range metainfo.Services {
+		services = append(services, service)
+	}
+	dubbo.UpdateClustersByProvider(metainfo.Application, metainfo.Revision, services)
 }

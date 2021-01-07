@@ -8,13 +8,20 @@ import (
 func handleConsumerListProviders(upstream zookeeper.Upstream, request *zookeeper.Context) {
 	var interfaceName string
 	request.MustGetParam("interface", &interfaceName)
-	downstream, response := upstream.DirectForward(request)
+	_, response := upstream.DirectForward(request)
 	if response.Error != nil {
-		downstream.DirectReply(response)
 		return
 	}
 	children := zookeeper.ParseChildren(response.RawPayload)
 	response.Value = children
 	dubbo.UpdateApplicationsByInterface(interfaceName, children)
-	downstream.DirectReply(response)
+}
+
+func handleConsumerListProviderApplications(upstream zookeeper.Upstream, request *zookeeper.Context) {
+	content := request.RawPayload
+	children := zookeeper.ParseChildren(content)
+	request.Value = children
+	var application string
+	request.MustGetParam("application", &application)
+	dubbo.UpdateEndpointsByApplication(application, children)
 }

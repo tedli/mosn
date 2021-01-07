@@ -20,7 +20,7 @@ package zookeeper
 import "testing"
 
 func TestRoute(t *testing.T) {
-	if e := Register(OpCreate, "/services/demo-service-provider2/{string:host}:{int:port}/{regex:revision:[a-fA-F0-9]{32}}", func(u Upstream, c *Context) {
+	if e := Register(OpCreate, "/services/demo-service-provider2/<string:host>:<int:port>/<regex:revision:[a-fA-F0-9]{32}>", func(u Upstream, c *Context) {
 		var port int
 		exist, err := c.GetParam("port", &port)
 		if err != nil {

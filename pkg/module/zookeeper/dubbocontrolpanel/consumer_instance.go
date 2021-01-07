@@ -17,13 +17,11 @@ func handleConsumerInstanceResolve(upstream zookeeper.Upstream, request *zookeep
 	request.MustGetParam("port", &port)
 	downstream, response := upstream.DirectForward(request)
 	if response.Error != nil {
-		downstream.DirectReply(response)
 		return
 	}
 	var serviceInstance dubbo.ServiceInstance
 	if err := json.Unmarshal(response.Data, &serviceInstance); err != nil {
 		log.DefaultLogger.Errorf("zookeeper.filters.instance.handleGetDataResponse, unmarshal data failed, %s", err)
-		downstream.DirectReply(response)
 		return
 	}
 	revision := serviceInstance.Payload.Metadata[dubbo.MetadataRevisionKey]
@@ -43,7 +41,6 @@ func handleConsumerInstanceResolve(upstream zookeeper.Upstream, request *zookeep
 	metadataEndpoints, err := json.MarshalToString(endpoints)
 	if err != nil {
 		log.DefaultLogger.Errorf("zookeeper.filters.instance.handleGetDataResponse, marshal modified endpoints failed, %s", err)
-		downstream.DirectReply(response)
 		return
 	}
 	serviceInstance.Payload.Metadata[dubbo.MetadataEndpointKey] = metadataEndpoints

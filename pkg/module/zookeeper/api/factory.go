@@ -24,14 +24,12 @@ import (
 )
 
 var (
-	DebugFilter     zookeeper.Filter = new(debugFilter)
-	HeaderFilter    zookeeper.Filter = filters.NewHeaderFilter()
-	PathFilter      zookeeper.Filter = filters.NewPathFilter()
-	DataFilter      zookeeper.Filter = filters.NewDataFilter()
-	MetadataFilter  zookeeper.Filter = filters.NewMetadataFilters()
-	SessionFilter   zookeeper.Filter = zookeeper.NewSessionFilter()
-	ProvidersFilter zookeeper.Filter = filters.NewProvidersFilter()
-	RouterFilter    zookeeper.Filter = zookeeper.NewRouteFilter()
+	DebugFilter   zookeeper.Filter = new(debugFilter)
+	HeaderFilter  zookeeper.Filter = filters.NewHeaderFilter()
+	PathFilter    zookeeper.Filter = filters.NewPathFilter()
+	DataFilter    zookeeper.Filter = filters.NewDataFilter()
+	SessionFilter zookeeper.Filter = zookeeper.NewSessionFilter()
+	RouterFilter  zookeeper.Filter = zookeeper.NewRouteFilter()
 )
 
 func GetApplicationName() (name string) {

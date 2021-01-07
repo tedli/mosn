@@ -33,6 +33,8 @@ func NewRouteFilter() Filter {
 }
 
 type upstream struct {
+	reaponseCalled        bool
+	called                bool
 	handleRequestFinished *sync.WaitGroup
 	startToHandleResponse *sync.WaitGroup
 	response              *downstream
@@ -49,9 +51,8 @@ func newUpstream() *upstream {
 	}
 }
 
-
-
 func (u *upstream) DirectForward(*Context) (Downstream, *Context) {
+	u.called = true
 	u.handleRequestFinished.Done()
 	u.startToHandleResponse.Wait()
 	return u.response, u.response.response
@@ -63,7 +64,7 @@ func (u *upstream) ModifyAndSend(ctx *Context, message interface{}) (Downstream,
 	return u.DirectForward(ctx)
 }
 
-func (u *upstream) Passthrough() {
+func (u *upstream) passthrough() {
 	go func() {
 		d, r := u.DirectForward(nil)
 		d.DirectReply(r)
@@ -71,20 +72,23 @@ func (u *upstream) Passthrough() {
 }
 
 type downstream struct {
+	upstream               *upstream
 	response               *Context
 	handleResponseFinished *sync.WaitGroup
 }
 
-func newDownstream(response *Context) *downstream {
+func newDownstream(response *Context, u *upstream) *downstream {
 	handleResponseFinished := new(sync.WaitGroup)
 	handleResponseFinished.Add(1)
 	return &downstream{
+		upstream:               u,
 		response:               response,
 		handleResponseFinished: handleResponseFinished,
 	}
 }
 
 func (d *downstream) DirectReply(ctx *Context) {
+	d.upstream.reaponseCalled = true
 	d.handleResponseFinished.Done()
 }
 
@@ -106,7 +110,14 @@ func (routerFilter) HandleRequest(ctx *Context) {
 	ctx.params = params
 	u := newUpstream()
 	ctx.route = u
-	go route.handler(u, ctx)
+	go func() {
+		route.handler(u, ctx)
+		if !u.called {
+			u.passthrough()
+		} else if !u.reaponseCalled {
+			u.response.DirectReply(nil)
+		}
+	}()
 	u.handleRequestFinished.Wait()
 }
 
@@ -115,7 +126,7 @@ func (routerFilter) HandleResponse(ctx *Context) {
 		return
 	}
 	rc := ctx.Request.route
-	d := newDownstream(ctx)
+	d := newDownstream(ctx, ctx.Request.route)
 	rc.response = d
 	ctx.Request.route = nil
 	rc.startToHandleResponse.Done()
@@ -165,7 +176,6 @@ type Downstream interface {
 }
 
 type Upstream interface {
-	Passthrough()
 	DirectForward(*Context) (Downstream, *Context)
 	ModifyAndSend(ctx *Context, message interface{}) (Downstream, *Context)
 }
@@ -210,14 +220,14 @@ func Register(opcode OpCode, path string, handler Handler) error {
 }
 
 const (
-	pathElement          = `[^ \f\n\r\t\v\\}/]`
+	pathElement          = `[^ \f\n\r\t\v>/]`
 	stringCapturePattern = `(?P<%s>[^ \f\n\r\t\v/]+)`
 	intCapturePattern    = `(?P<%s>\d+)`
-	regexCapturePattern = `(?P<%s>%s)`
+	regexCapturePattern  = `(?P<%s>%s)`
 )
 
 var (
-	paramPattern = regexp.MustCompile(fmt.Sprintf("\\{%s+\\}", pathElement))
+	paramPattern = regexp.MustCompile(fmt.Sprintf("<%s+>", pathElement))
 
 	ErrUnsupportedParamType      = errors.New("unsupported param type")
 	ErrSameParamNameMoreThanOnce = errors.New("same param name more than once")
@@ -234,7 +244,7 @@ type capture struct {
 const (
 	paramTypeString = "string"
 	paramTypeInt    = "int"
-	paramTypeRegex = "regex"
+	paramTypeRegex  = "regex"
 )
 
 func pathToRegexp(path string) (patternStr string, pattern *regexp.Regexp, captures map[string]*capture, err error) {

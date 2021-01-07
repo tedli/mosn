@@ -29,26 +29,41 @@ var (
 func init() {
 	zookeeper.MustRegister(
 		zookeeper.OpCreate,
-		"/services/{string:application}/{string:host}:{int:port}",
+		"/services/<string:application>/<string:host>:<int:port>",
 		handleProviderInstanceRegister)
 
 	zookeeper.MustRegister(
 		zookeeper.OpGetData,
-		"/services/{string:application}/{string:host}:{int:port}",
+		"/services/<string:application>/<string:host>:<int:port>",
 		handleConsumerInstanceResolve)
 
 	zookeeper.MustRegister(
 		zookeeper.OpGetChildren2,
-		"/dubbo/mapping/{string:interface}",
+		"/dubbo/mapping/<string:interface>",
 		handleConsumerListProviders)
 
 	zookeeper.MustRegister(
 		zookeeper.OpCreate,
-		"/dubbo/metadata/{string:interface}/{string:version}/{string:group}/provider/{string:application}",
+		"/dubbo/metadata/<string:interface>/<string:version>/<string:group>/provider/<string:application>",
 		handleProviderCreateMetadata)
 
 	zookeeper.MustRegister(
 		zookeeper.OpCreate,
-		"/dubbo/metadata/{string:interface}/{string:version}/{string:group}/consumer/{string:application}",
+		"/dubbo/metadata/<string:interface>/<string:version>/<string:group>/consumer/<string:application>",
 		handleConsumerCreateMetadata)
+
+	zookeeper.MustRegister(
+		zookeeper.OpCreate,
+		"/dubbo/metadata/<string:application>/<regex:revision:[a-fA-F0-9]{32}>",
+		handleProviderCreateMetadataRevision)
+
+	zookeeper.MustRegister(
+		zookeeper.OpGetData,
+		"/dubbo/metadata/<string:application>/<regex:revision:[a-fA-F0-9]{32}>",
+		handleConsumerGetProviderMetadataRevision)
+
+	zookeeper.MustRegister(
+		zookeeper.OpGetChildren2,
+		"/services/<string:application>",
+		handleConsumerListProviderApplications)
 }

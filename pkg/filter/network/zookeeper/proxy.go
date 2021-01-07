@@ -47,8 +47,6 @@ func (f factory) CreateFilterChain(_ context.Context, callbacks api.NetWorkFilte
 		zkapi.PathFilter,
 		zkapi.DataFilter,
 		zkapi.RouterFilter,
-		zkapi.MetadataFilter,
-		zkapi.ProvidersFilter,
 		zkapi.DebugFilter,
 	})
 	callbacks.AddReadFilter(filter)
