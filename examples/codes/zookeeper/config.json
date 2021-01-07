@@ -14,12 +14,7 @@
               "tls_context": {},
               "filters": [
                 {
-                  "type": "zookeeper",
-                  "filters": [
-                    "auth",
-                    "s",
-                    "lalala"
-                  ]
+                  "type": "zookeeper"
                 },
                 {
                   "type": "tcp_proxy",
