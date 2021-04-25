@@ -412,7 +412,8 @@ func (s *downStream) stateMachineExecutor(cleanStream bool, startPhase types.Pha
 					if id == s.ID {
 						s.cleanStream()
 					}
-				}}()
+				}
+			}()
 		}
 
 		phase := startPhase

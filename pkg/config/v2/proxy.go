@@ -43,6 +43,7 @@ type Proxy struct {
 	RouterConfigName   string                 `json:"router_config_name,omitempty"`
 	ValidateClusters   bool                   `json:"validate_clusters,omitempty"`
 	ExtendConfig       map[string]interface{} `json:"extend_config,omitempty"`
+	Sequential         bool                   `json:"seq,omitempty"`
 
 	// proxy level concurrency config,
 	// concurrency num = worker num in worker pool per connection

@@ -613,6 +613,7 @@ func EncodeWorkLoad(headers types.HeaderMap, buf types.IoBuffer) ([]byte, error)
 	if index > 0 {
 		serviceName = serviceName[:index]
 	}
+	reqBody.Attachments["interface"] = serviceName
 
 	dubboVersion := HeadGetDefault(headers, "dubbo", "2.6.5")
 	serviceVersion := HeadGetDefault(headers, "version", "0.0.0")

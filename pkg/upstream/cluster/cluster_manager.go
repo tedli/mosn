@@ -328,18 +328,18 @@ func (cm *clusterManager) UpdateTLSManager(tls *v2.TLSConfig) {
 	if tls == nil {
 		tls = &v2.TLSConfig{} // use a disabled config instead
 	}
-	mng, err := mtls.NewTLSClientContextManager(tls)
 	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
 		log.DefaultLogger.Debugf("[upstream] [cluster manager] NewClusterManager: Add TLS Manager start %+v", tls)
 	}
+	mng, err := mtls.NewTLSClientContextManager(tls)
 	if err != nil {
 		log.DefaultLogger.Alertf("cluster.config", "[upstream] [cluster manager] NewClusterManager: Add TLS Manager failed, error: %v", err)
 		return
 	}
-	cm.tlsMng.Store(mng)
 	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
 		log.DefaultLogger.Debugf("[upstream] [cluster manager] NewClusterManager: Add TLS Manager success %+v", mng)
 	}
+	cm.tlsMng.Store(mng)
 	configmanager.SetClusterManagerTLS(*tls)
 }
 
