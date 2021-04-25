@@ -1124,12 +1124,14 @@ func (cc *clientConnection) tryConnect() (event api.ConnectionEvent, err error) 
 		return
 	}
 	cc.rawConnection, err = cc.tlsMng.Conn(cc.rawConnection)
-	_, ok := cc.rawConnection.(*mtls.TLSConn)
-	if ok {
-		log.DefaultLogger.Debugf("[mtls] [client] use mtls conn l:%v, r:%v", cc.rawConnection.LocalAddr().String(), cc.rawConnection.RemoteAddr().String())
-	} else {
-		log.DefaultLogger.Debugf("[mtls] [client] unuse mtls conn l:%v, r:%v", cc.rawConnection.LocalAddr().String(), cc.rawConnection.RemoteAddr().String())
-	}
+	// fix: maybe panic
+	// https://github.com/mosn/mosn/blob/c34975999e7f154705797d68b2ae2661e2d123a8/pkg/network/connection.go#L1134
+	//_, ok := cc.rawConnection.(*mtls.TLSConn)
+	//if ok {
+	//	log.DefaultLogger.Debugf("[mtls] [client] use mtls conn l:%v, r:%v", cc.rawConnection.LocalAddr().String(), cc.rawConnection.RemoteAddr().String())
+	//} else {
+	//	log.DefaultLogger.Debugf("[mtls] [client] unuse mtls conn l:%v, r:%v", cc.rawConnection.LocalAddr().String(), cc.rawConnection.RemoteAddr().String())
+	//}
 	if err == nil {
 		return
 	}

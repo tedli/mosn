@@ -126,6 +126,8 @@ type downStream struct {
 	snapshot types.ClusterSnapshot
 
 	phase types.Phase
+
+	sequential bool
 }
 
 func newActiveStream(ctx context.Context, proxy *proxy, responseSender types.StreamSender, span types.Span) *downStream {
@@ -180,6 +182,11 @@ func newActiveStream(ctx context.Context, proxy *proxy, responseSender types.Str
 		requestId := mosnctx.Get(stream.context, types.ContextKeyStreamID)
 		log.Proxy.Debugf(stream.context, "[proxy] [downstream] new stream, proxyId = %d , requestId =%v, oneway=%t", stream.ID, requestId, stream.oneway)
 	}
+
+	if proxy.config.Sequential {
+		stream.sequential = true
+	}
+
 	return stream
 }
 
@@ -365,24 +372,54 @@ func (s *downStream) OnReceive(ctx context.Context, headers types.HeaderMap, dat
 		log.Proxy.Debugf(s.context, "[proxy] [downstream] OnReceive headers:%+v, data:%+v, trailers:%+v", headers, data, trailers)
 	}
 
+	var cleanStream bool
+	if s.sequential {
+		cleanStream = false
+	} else {
+		cleanStream = true
+	}
+	var task = s.stateMachineExecutor(cleanStream, types.InitPhase)
+
+	if s.proxy.serverStreamConn.EnableWorkerPool() {
+		// should enable workerpool
+		// goroutine for proxy
+		if s.proxy.workerpool != nil {
+			// use the worker pool for current proxy
+			// NOTE: should this be configurable?
+			// eg, use config to control Schedule or to ScheduleAuto
+			s.proxy.workerpool.Schedule(task)
+		} else {
+			// use the global shared worker pool
+			pool.ScheduleAuto(task)
+		}
+		return
+	}
+
+	// hack, sync send
+	task()
+	//pool.ScheduleAuto(task)
+}
+
+func (s *downStream) stateMachineExecutor(cleanStream bool, startPhase types.Phase) func() {
 	id := s.ID
 	var task = func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Proxy.Alertf(s.context, types.ErrorKeyProxyPanic, "[proxy] [downstream] OnReceive panic: %v, downstream: %+v, oldId: %d, newId: %d\n%s",
-					r, s, id, s.ID, string(debug.Stack()))
+		if cleanStream {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Proxy.Alertf(s.context, types.ErrorKeyProxyPanic, "[proxy] [downstream] OnReceive panic: %v, downstream: %+v, oldId: %d, newId: %d\n%s",
+						r, s, id, s.ID, string(debug.Stack()))
 
-				if id == s.ID {
-					s.cleanStream()
-				}
-			}
-		}()
+					if id == s.ID {
+						s.cleanStream()
+					}
+				}}()
+		}
 
-		phase := types.InitPhase
+		phase := startPhase
 		for i := 0; i < 10; i++ {
 			s.cleanNotify()
 
-			phase = s.receive(ctx, id, phase)
+			phase = s.receive(s.context, id, phase)
 			switch phase {
 			case types.End:
 				return
@@ -402,24 +439,7 @@ func (s *downStream) OnReceive(ctx context.Context, headers types.HeaderMap, dat
 		}
 	}
 
-	if s.proxy.serverStreamConn.EnableWorkerPool() {
-		// should enable workerpool
-		// goroutine for proxy
-		if s.proxy.workerpool != nil {
-			// use the worker pool for current proxy
-			// NOTE: should this be configurable?
-			// eg, use config to control Schedule or to ScheduleAuto
-			s.proxy.workerpool.Schedule(task)
-		} else {
-			// use the global shared worker pool
-			pool.ScheduleAuto(task)
-		}
-		return
-	}
-
-	task()
-	return
-
+	return task
 }
 
 func (s *downStream) printPhaseInfo(phaseId types.Phase, proxyId uint32) {
@@ -575,6 +595,11 @@ func (s *downStream) receive(ctx context.Context, id uint32, phase types.Phase) 
 
 		// wait for upstreamRequest or reset
 		case types.WaitNotify:
+			if s.sequential {
+				phase = types.End
+				continue
+			}
+
 			if log.Proxy.GetLogLevel() >= log.DEBUG {
 				s.printPhaseInfo(types.WaitNotify, id)
 			}

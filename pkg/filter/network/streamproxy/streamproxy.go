@@ -29,7 +29,7 @@ import (
 	"mosn.io/mosn/pkg/configmanager"
 
 	"mosn.io/api"
-	v2 "mosn.io/mosn/pkg/config/v2"
+	"mosn.io/mosn/pkg/config/v2"
 	mosnctx "mosn.io/mosn/pkg/context"
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/network"
@@ -205,9 +205,21 @@ func (p *proxy) TCPConnForTransparentProxy(addr *net.TCPAddr) types.CreateConnec
 	if mockInboundIp == "true" && listenerType == v2.INGRESS {
 		ipAndPort := strings.Split(finalUpstreamHost, ":")
 		if len(ipAndPort) >= 2 {
-			finalUpstreamHost = "127.0.0.1:" + ipAndPort[1]
+			portStr := ipAndPort[1]
+			if os.Getenv("MOSN_TP_MOCK_INBOUND_PORT") == "true" {
+				if val := os.Getenv("_PAAS_PUBLIC_PORT_" + portStr); val != "" {
+					portStr = val
+				}
+			}
+			finalUpstreamHost = "127.0.0.1:" + portStr
 		} else {
-			finalUpstreamHost = "127.0.0.1"
+			portStr := "80"
+			if os.Getenv("MOSN_TP_MOCK_INBOUND_PORT") == "true" {
+				if val := os.Getenv("_PAAS_PUBLIC_PORT_80"); val != "" {
+					portStr = val
+				}
+			}
+			finalUpstreamHost = "127.0.0.1:" + portStr
 		}
 	}
 
@@ -222,7 +234,8 @@ func (p *proxy) TCPConnForTransparentProxy(addr *net.TCPAddr) types.CreateConnec
 
 	config := v2.Host{
 		HostConfig: v2.HostConfig{
-			Address: finalUpstreamHost,
+			Address:    finalUpstreamHost,
+			TLSDisable: true,
 		},
 	}
 

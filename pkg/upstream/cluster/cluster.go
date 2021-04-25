@@ -78,6 +78,7 @@ func newSimpleCluster(clusterConfig v2.Cluster) types.Cluster {
 		lbType:               types.LoadBalancerType(clusterConfig.LbType),
 		resourceManager:      NewResourceManager(clusterConfig.CirBreThresholds),
 		clusterManagerTLS:    clusterConfig.ClusterManagerTLS,
+		allowduphostconn:  clusterConfig.AllowDupHostConn,
 	}
 
 	// set ConnectTimeout
@@ -178,6 +179,7 @@ type clusterInfo struct {
 	tlsMng               types.TLSClientContextManager
 	connectTimeout       time.Duration
 	lbConfig             v2.IsCluster_LbConfig
+	allowduphostconn     bool
 }
 
 func updateClusterResourceManager(ci types.ClusterInfo, rm types.ResourceManager) {
@@ -188,6 +190,10 @@ func updateClusterResourceManager(ci types.ClusterInfo, rm types.ResourceManager
 
 func (ci *clusterInfo) Name() string {
 	return ci.name
+}
+
+func (ci *clusterInfo)AllowDupHostConn() bool {
+	return ci.allowduphostconn
 }
 
 func (ci *clusterInfo) ClusterType() v2.ClusterType {

@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"mosn.io/api"
-	v2 "mosn.io/mosn/pkg/config/v2"
+	"mosn.io/mosn/pkg/config/v2"
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/mtls"
 	"mosn.io/mosn/pkg/network"
@@ -119,6 +119,10 @@ func (sh *simpleHost) SupportTLS() bool {
 	if mtls.IsGlobalMTLS() {
 		return true
 	}
+	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		log.DefaultLogger.Debugf("[simpleHost] IsSupportTLS()=%t && !sh.tlsDisable=%t && sh.ClusterInfo().TLSMng().Enabled()=%t",
+			IsSupportTLS(), !sh.tlsDisable, sh.ClusterInfo().TLSMng().Enabled())
+	}
 	return IsSupportTLS() && !sh.tlsDisable && sh.ClusterInfo().TLSMng().Enabled()
 }
 
@@ -137,8 +141,17 @@ func (sh *simpleHost) TLSHashValue() *types.HashValue {
 // types.Host Implement
 func (sh *simpleHost) CreateConnection(context context.Context) types.CreateConnectionData {
 	var tlsMng types.TLSClientContextManager
+	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		log.DefaultLogger.Debugf("[upstream] CreateConnection starting")
+	}
 	if sh.SupportTLS() {
+		if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+			log.DefaultLogger.Debugf("[upstream] CreateConnection SupportTLS")
+		}
 		tlsMng = sh.ClusterInfo().TLSMng()
+		if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+			log.DefaultLogger.Debugf("[upstream] CreateConnection TLSMng %+v", tlsMng)
+		}
 	}
 	clientConn := network.NewClientConnection(sh.ClusterInfo().ConnectTimeout(), tlsMng, sh.Address(), nil)
 	clientConn.SetBufferLimit(sh.ClusterInfo().ConnBufferLimitBytes())

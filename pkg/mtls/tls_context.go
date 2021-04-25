@@ -154,8 +154,12 @@ func newTLSContext(cfg *v2.TLSConfig, secret *secretInfo) (*tlsContext, error) {
 	factory := getFactory(cfg.Type)
 	hooks := factory.CreateConfigHooks(cfg.ExtendVerify)
 	// pool can be nil, if it is nil, TLS uses the host's root CA set.
+	log.DefaultLogger.Infof("ecret.Certificate %s", secret.Certificate)
+	log.DefaultLogger.Infof("ecret.PrivateKey %s", secret.PrivateKey)
+	log.DefaultLogger.Infof("ecret.Validation %s", secret.Validation)
 	pool, err := hooks.GetX509Pool(secret.Validation)
 	if err != nil {
+		log.DefaultLogger.Errorf("hooks.GetX509Pool failed %v", err)
 		return nil, err
 	}
 	tmpl.RootCAs = pool

@@ -122,6 +122,12 @@ func (r *upstreamRequest) OnReceive(ctx context.Context, headers types.HeaderMap
 	}
 
 	r.downStream.sendNotify()
+
+	ds := r.downStream
+	if ds != nil && ds.sequential {
+		task := ds.stateMachineExecutor(true, types.UpFilter)
+		task()
+	}
 }
 
 func (r *upstreamRequest) receiveHeaders(endStream bool) {

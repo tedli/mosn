@@ -70,7 +70,12 @@ func newStreamConnection(ctx context.Context, conn api.Connection, clientCallbac
 	sc.ctxManager.Next()
 
 	// 2. prepare protocols
-	subProtocol := mosnctx.Get(ctx, types.ContextSubProtocol).(string)
+	subProtocol := ""
+	if val := mosnctx.Get(ctx, types.ContextSubProtocol); val != nil {
+		subProtocol = mosnctx.Get(ctx, types.ContextSubProtocol).(string)
+	} else {
+		subProtocol = "dubbo"
+	}
 	subProtocols := strings.Split(subProtocol, ",")
 	// 2.1 exact protocol, get directly
 	// 2.2 multi protocol, setup engine for further match

@@ -23,13 +23,13 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"runtime/debug"
+	"strings"
 	"sync"
 
 	"mosn.io/mosn/pkg/trace"
 
-	hessian "github.com/apache/dubbo-go-hessian2"
+	"github.com/apache/dubbo-go-hessian2"
 	"mosn.io/mosn/pkg/protocol"
 	"mosn.io/mosn/pkg/types"
 	"mosn.io/pkg/buffer"
@@ -127,7 +127,7 @@ func getServiceAwareMeta(ctx context.Context, frame *Frame) (map[string]string, 
 			return m, err2
 		}
 	default:
-		return meta, fmt.Errorf("[xprotocol][dubbo] type do not support")
+		return meta, nil
 	}
 	return meta, nil
 }
@@ -357,32 +357,59 @@ func decodeHessian(ctx context.Context, frame *Frame, meta map[string]string) (m
 			}
 
 			arguments := GetArgumentCount(field.(string))
+			var argumentsError error
 			// we must skip all method arguments.
 			for i := 0; i < arguments; i++ {
 				_, err = decoder.Decode()
 				if err != nil {
-					return nil, fmt.Errorf("[xprotocol][dubbo] decode dubbo argument error: %v", err)
+					argumentsError = err
+					//return nil, fmt.Errorf("[xprotocol][dubbo] decode dubbo argument error: %v", err)
 				}
 			}
 
-			field, err = decoder.Decode()
-			if err != nil {
-				return nil, fmt.Errorf("[xprotocol][dubbo] decode dubbo attachments error: %v", err)
-			}
+			if argumentsError == nil {
+				field, err = decoder.Decode()
+				if err != nil {
+					return nil, fmt.Errorf("[xprotocol][dubbo] decode dubbo attachments error: %v", err)
+				}
 
-			if field != nil {
-				if origin, ok := field.(map[interface{}]interface{}); ok {
-					// we loop all attachments and check element type,
-					// we should only read string types.
-					for k, v := range origin {
-						if key, ok := k.(string); ok {
-							if val, ok := v.(string); ok {
-								meta[key] = val
-								// we should use interface value,
-								// convenient for us to do service discovery.
-								if key == InterfaceNameHeader {
-									meta[ServiceNameHeader] = val
+				if field != nil {
+					if origin, ok := field.(map[interface{}]interface{}); ok {
+						// we loop all attachments and check element type,
+						// we should only read string types.
+						for k, v := range origin {
+							if key, ok := k.(string); ok {
+								if val, ok := v.(string); ok {
+									meta[key] = val
+									// we should use interface value,
+									// convenient for us to do service discovery.
+									if key == InterfaceNameHeader {
+										meta[ServiceNameHeader] = val
+									}
 								}
+							}
+						}
+					}
+				}
+			} else {
+				for i := 0; i < 1000; i++ {
+					v, _ := decoder.Decode()
+					if v != nil {
+						if origin, ok := v.(map[interface{}]interface{}); ok {
+							if origin[InterfaceNameHeader] != nil {
+								for k, v := range origin {
+									if key, ok := k.(string); ok {
+										if val, ok := v.(string); ok {
+											meta[key] = val
+											// we should use interface value,
+											// convenient for us to do service discovery.
+											if key == InterfaceNameHeader {
+												meta[ServiceNameHeader] = val
+											}
+										}
+									}
+								}
+								break
 							}
 						}
 					}
@@ -578,7 +605,14 @@ func EncodeWorkLoad(headers types.HeaderMap, buf types.IoBuffer) ([]byte, error)
 
 	//service
 	serviceName := HeadGetDefault(headers, "service", "")
-	reqBody.Attachments["interface"] = serviceName
+	index := strings.Index(serviceName, "@")
+	if index > 0 {
+		serviceName = serviceName[:index]
+	}
+	index = strings.Index(serviceName, ":")
+	if index > 0 {
+		serviceName = serviceName[:index]
+	}
 
 	dubboVersion := HeadGetDefault(headers, "dubbo", "2.6.5")
 	serviceVersion := HeadGetDefault(headers, "version", "0.0.0")
@@ -599,17 +633,25 @@ func EncodeWorkLoad(headers types.HeaderMap, buf types.IoBuffer) ([]byte, error)
 	//有几个参数写几个参数，要写在byte[]后面,换行
 	paramesByte := []byte{}
 	var paramesTypeStr string
-	for i := 0; i < len(reqBody.Parameters); i++ {
-		paramesTypeStr += EncodeRequestType(reqBody.Parameters[i].Type)
-		valByte, _ := json.Marshal(reqBody.Parameters[i].Value)
-		paramesByte = append(paramesByte, valByte...)
-		if i < len(reqBody.Parameters)-1 {
-			paramesByte = append(paramesByte, []byte{10}...)
+	if reqBody.Parameters != nil || len(reqBody.Parameters) > 0 {
+		for i := 0; i < len(reqBody.Parameters); i++ {
+			if reqBody.Parameters[i].Type != "" {
+				paramesTypeStr += EncodeRequestType(reqBody.Parameters[i].Type)
+				valByte, _ := json.Marshal(reqBody.Parameters[i].Value)
+				paramesByte = append(paramesByte, valByte...)
+				if i < len(reqBody.Parameters)-1 {
+					paramesByte = append(paramesByte, []byte{10}...)
+				}
+			}
 		}
 	}
 
-	paramesTypeByte, _ := json.Marshal(paramesTypeStr)
-	attachmentsByte, _ := json.Marshal(reqBody.Attachments)
+	var paramesTypeByte []byte
+	var attachmentsByte []byte
+	if paramesTypeStr != "" {
+		paramesTypeByte, _ = json.Marshal(paramesTypeStr)
+		attachmentsByte, _ = json.Marshal(reqBody.Attachments)
+	}
 
 	payLoadByteFin := bytes.Join([][]byte{dubboVersionByte, serviceNameByte, verionByte, methodNameByte, paramesTypeByte, paramesByte, attachmentsByte}, []byte{10})
 

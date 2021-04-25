@@ -22,6 +22,7 @@ import (
 	"strconv"
 
 	"mosn.io/mosn/pkg/config/v2"
+	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/types"
 )
 
@@ -57,10 +58,14 @@ func IsGlobalMTLS() bool {
 // NewProvider returns a types.Provider.
 // we support sds provider and static provider.
 func NewProvider(cfg *v2.TLSConfig) (types.TLSProvider, error) {
-	if !cfg.Status || !IsGlobalMTLS() {
+	log.DefaultLogger.Infof("[mtls] Provider TLS Config status: %v", cfg.Status)
+	log.DefaultLogger.Infof("[mtls] [NewProvider] config:%v", cfg)
+	if !cfg.Status /*|| !IsGlobalMTLS()*/ {
 		return nil, nil
 	}
 	if cfg.SdsConfig != nil {
+		log.DefaultLogger.Infof("[mtls] Provider TLS sds config: %v", cfg.SdsConfig )
+		log.DefaultLogger.Infof("[mtls]SdsConfig config Valid, c != nil %v, CertificateConfig %v, ValidationConfig %v", cfg.SdsConfig != nil, cfg.SdsConfig.CertificateConfig, cfg.SdsConfig.ValidationConfig)
 		if !cfg.SdsConfig.Valid() {
 			return nil, ErrorNoCertConfigure
 		}

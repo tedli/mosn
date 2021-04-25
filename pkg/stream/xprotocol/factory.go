@@ -18,6 +18,7 @@
 package xprotocol
 
 import (
+	"bytes"
 	"context"
 
 	"mosn.io/api"
@@ -49,5 +50,14 @@ func (f *streamConnFactory) CreateBiDirectStream(context context.Context, connec
 }
 
 func (f *streamConnFactory) ProtocolMatch(context context.Context, prot string, magic []byte) error {
+	if val := context.Value(types.ContextOriRemoteAddr); val == nil {
+		return stream.FAILED
+	}
+	if len(magic) < 3 {
+		return stream.EAGAIN
+	}
+	if bytes.Compare(magic[0:2], []byte{0xda, 0xbb}) == 0 {
+		return nil
+	}
 	return stream.FAILED
 }

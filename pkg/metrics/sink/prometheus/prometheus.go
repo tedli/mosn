@@ -249,6 +249,20 @@ func builder(cfg map[string]interface{}) (types.MetricsSink, error) {
 		}
 	}
 
+	var percentilesArr []int
+	percentiles := os.Getenv("PROMETHEUS_PERCENTILLES")
+	if percentiles != "" {
+		pres := strings.Split(percentiles, ",")
+		for _, val := range pres {
+			if p, e := strconv.Atoi(strings.Trim(val, " ")); e == nil {
+				percentilesArr = append(percentilesArr, p)
+			}
+		}
+	}
+	if percentilesArr != nil && len(percentilesArr) > 0 {
+		promCfg.Percentiles = percentilesArr
+	}
+
 	if len(promCfg.Percentiles) > 0 {
 		percentilesFloat := make([]float64, 0, len(promCfg.Percentiles))
 		for _, p := range promCfg.Percentiles {

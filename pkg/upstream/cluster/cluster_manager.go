@@ -27,7 +27,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	v2 "mosn.io/mosn/pkg/config/v2"
+	"mosn.io/mosn/pkg/config/v2"
 	"mosn.io/mosn/pkg/configmanager"
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/mtls"
@@ -64,6 +64,7 @@ type clusterManager struct {
 	tlsMetrics       *mtls.TLSStats
 	tlsMng           atomic.Value // store types.TLSClientContextManager
 	mux              sync.Mutex
+	allowDupConnForHost bool
 }
 
 type clusterManagerSingleton struct {
@@ -312,8 +313,14 @@ func (cm *clusterManager) ConnPoolForCluster(balancerContext types.LoadBalancerC
 }
 
 func (cm *clusterManager) GetTLSManager() types.TLSClientContextManager {
+	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		log.DefaultLogger.Debugf("[upstream] [cluster manager] GetTLSManager: Get TLS Manager start")
+	}
 	v := cm.tlsMng.Load()
 	tlsmng, _ := v.(types.TLSClientContextManager)
+	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		log.DefaultLogger.Debugf("[upstream] [cluster manager] GetTLSManager: Get TLS Manager success %+v", tlsmng)
+	}
 	return tlsmng
 }
 
@@ -322,11 +329,17 @@ func (cm *clusterManager) UpdateTLSManager(tls *v2.TLSConfig) {
 		tls = &v2.TLSConfig{} // use a disabled config instead
 	}
 	mng, err := mtls.NewTLSClientContextManager(tls)
+	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		log.DefaultLogger.Debugf("[upstream] [cluster manager] NewClusterManager: Add TLS Manager start %+v", tls)
+	}
 	if err != nil {
 		log.DefaultLogger.Alertf("cluster.config", "[upstream] [cluster manager] NewClusterManager: Add TLS Manager failed, error: %v", err)
 		return
 	}
 	cm.tlsMng.Store(mng)
+	if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
+		log.DefaultLogger.Debugf("[upstream] [cluster manager] NewClusterManager: Add TLS Manager success %+v", mng)
+	}
 	configmanager.SetClusterManagerTLS(*tls)
 }
 
@@ -363,7 +376,13 @@ func (cm *clusterManager) getActiveConnectionPool(balancerContext types.LoadBala
 			return nil, errNilHostChoose
 		}
 
-		addr := host.AddressString()
+		var addr string
+		if clusterSnapshot.ClusterInfo().AllowDupHostConn() {
+			addr = host.AddressString() + clusterSnapshot.ClusterInfo().Name()
+		} else {
+			// 默认的主站是会将单个 host 上的连接去重的
+			addr = host.AddressString()
+		}
 		if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
 			log.DefaultLogger.Debugf("[upstream] [cluster manager] clusterSnapshot.loadbalancer.ChooseHost result is %s, cluster name = %s", addr, clusterSnapshot.ClusterInfo().Name())
 		}

@@ -37,6 +37,15 @@ func (s *downStream) runAppendFilters(p types.Phase, headers types.HeaderMap, da
 		case api.StreamFiltertermination:
 			s.cleanStream()
 			return
+		case api.StreamFilterReChooseHost:
+			for _, host := range s.snapshot.HostSet().Hosts() {
+				// if there is other hosts, re-choosehost
+				if host.Health() {
+					s.receiverFiltersAgainPhase = types.ChooseHost
+					s.senderFiltersIndex = 0
+					return
+				}
+			}
 		default:
 		}
 	}

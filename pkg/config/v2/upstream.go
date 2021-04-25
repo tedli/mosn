@@ -35,6 +35,7 @@ type HealthCheckConfig struct {
 	TimeoutConfig        api.DurationConfig     `json:"timeout,omitempty"`
 	IntervalConfig       api.DurationConfig     `json:"interval,omitempty"`
 	IntervalJitterConfig api.DurationConfig     `json:"interval_jitter,omitempty"`
+	InitialDelayConfig   *api.DurationConfig    `json:"initial_delay,omitempty"`
 	HealthyThreshold     uint32                 `json:"healthy_threshold,omitempty"`
 	UnhealthyThreshold   uint32                 `json:"unhealthy_threshold,omitempty"`
 	ServiceName          string                 `json:"service_name,omitempty"`
@@ -106,6 +107,8 @@ type Cluster struct {
 	DnsResolverConfig    DnsResolverConfig   `json:"dns_resolvers,omitempty"`
 	DnsResolverFile      string              `json:"dns_resolver_file,omitempty"`
 	DnsResolverPort      string              `json:"dns_resolver_port,omitempty"`
+
+	AllowDupHostConn bool `json:"allow_dup_host_conn,omitempty"`
 }
 
 type DnsResolverConfig struct {

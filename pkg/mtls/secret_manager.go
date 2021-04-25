@@ -143,6 +143,7 @@ type sdsProvider struct {
 
 func (p *sdsProvider) setValidation(v string) {
 	p.info.Validation = v
+	log.DefaultLogger.Infof("[mtls] [sds provider] ca validation %s", v)
 	if p.info.full() {
 		p.update()
 	}
@@ -153,6 +154,7 @@ func (p *sdsProvider) setCertificate(name string, secret *types.SdsSecret) {
 		p.info.Certificate = secret.CertificatePEM
 		p.info.PrivateKey = secret.PrivateKeyPEM
 		log.DefaultLogger.Infof("[mtls] [sds provider] provider %s receive a cerificate set", name)
+		log.DefaultLogger.Infof("[mtls] [sds provider] certificate %s private key %s", secret.CertificatePEM, secret.PrivateKeyPEM)
 	}
 	if p.info.full() {
 		p.update()

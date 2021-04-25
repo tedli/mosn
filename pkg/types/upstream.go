@@ -151,6 +151,7 @@ type Host interface {
 
 // ClusterInfo defines a cluster's information
 type ClusterInfo interface {
+	AllowDupHostConn() bool
 	// Name returns the cluster name
 	Name() string
 

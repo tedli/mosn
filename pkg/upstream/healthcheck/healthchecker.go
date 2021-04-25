@@ -22,16 +22,19 @@ import (
 	"sync/atomic"
 	"time"
 
+	"mosn.io/pkg/utils"
+
 	v2 "mosn.io/mosn/pkg/config/v2"
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/types"
-	"mosn.io/pkg/utils"
 )
 
 const (
 	DefaultTimeout  = time.Second
 	DefaultInterval = 15 * time.Second
 )
+
+var firstInterval = time.Second
 
 // TODO: move healthcheck package to cluster package
 
@@ -50,6 +53,7 @@ type healthChecker struct {
 	intervalBase       time.Duration
 	intervalJitter     time.Duration
 	healthyThreshold   uint32
+	initialDelay       time.Duration
 	unhealthyThreshold uint32
 	rander             *rand.Rand
 	hostCheckCallbacks []types.HealthCheckCb
@@ -79,6 +83,13 @@ func newHealthChecker(cfg v2.HealthCheck, f types.HealthCheckSessionFactory) typ
 		checkers:           make(map[string]*sessionChecker),
 		stats:              newHealthCheckStats(cfg.ServiceName),
 	}
+
+	if cfg.InitialDelayConfig != nil {
+		hc.initialDelay = cfg.InitialDelayConfig.Duration
+	} else {
+		hc.initialDelay = firstInterval
+	}
+
 	// Add common callbacks when create
 	// common callbacks should be registered and configured
 	for _, name := range cfg.CommonCallbacks {
