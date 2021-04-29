@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 
 	"mosn.io/mosn/pkg/protocol/xprotocol"
+	"mosn.io/mosn/pkg/protocol/xprotocol/hooks"
 	"mosn.io/mosn/pkg/types"
 	"mosn.io/pkg/buffer"
 )
@@ -38,6 +39,11 @@ func encodeRequest(ctx context.Context, request *Request) (types.IoBuffer, error
 			request.Data.Count(1)
 			return request.Data, nil
 		}
+	}
+
+	serviceName, _ := hooks.BuildServiceName(request, ctx)
+	if err := hooks.BeforeEncode(ctx, request, serviceName, &requestWrapper{request: request}); err != nil {
+		return nil, err
 	}
 
 	// 2. slow-path, construct buffer from scratch

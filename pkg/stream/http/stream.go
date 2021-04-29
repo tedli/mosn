@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -37,6 +38,7 @@ import (
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/protocol"
 	mosnhttp "mosn.io/mosn/pkg/protocol/http"
+	"mosn.io/mosn/pkg/protocol/xprotocol/hooks"
 	str "mosn.io/mosn/pkg/stream"
 	"mosn.io/mosn/pkg/trace"
 	"mosn.io/mosn/pkg/types"
@@ -475,6 +477,16 @@ func (conn *serverStreamConnection) serve() {
 		s.responseDoneChan = make(chan bool, 1)
 		s.header = mosnhttp.RequestHeader{&s.request.Header, nil}
 
+		serviceName, _ := hooks.BuildServiceName(s.header, ctx)
+		if err := hooks.AfterDecode(ctx, s.header, serviceName, &requestWrapper{request: request}); err != nil {
+			message := err.Error()
+			length := len(message)
+			conn.conn.Write(buffer.NewIoBufferString(fmt.Sprintf(
+				"HTTP/1.1 500 Internal Server Error\n\nContent-Length: %d\r\n\r\n%s", length, message)))
+			conn.conn.Close(api.FlushWrite, api.LocalClose)
+			return
+		}
+
 		var span types.Span
 		if trace.IsEnabled() {
 			tracer := trace.Tracer(protocol.HTTP1)
@@ -594,7 +606,7 @@ func (s *clientStream) AppendHeaders(context context.Context, headersIn types.He
 	headers.CopyTo(&s.request.Header)
 
 	if endStream {
-		s.endStream()
+		s.endStream(context)
 	}
 
 	return nil
@@ -604,19 +616,45 @@ func (s *clientStream) AppendData(context context.Context, data buffer.IoBuffer,
 	s.request.SetBody(data.Bytes())
 
 	if endStream {
-		s.endStream()
+		s.endStream(context)
 	}
 
 	return nil
 }
 
 func (s *clientStream) AppendTrailers(context context.Context, trailers types.HeaderMap) error {
-	s.endStream()
+	s.endStream(context)
 	return nil
 }
 
-func (s *clientStream) endStream() {
-	err := s.doSend()
+type requestWrapper struct {
+	request *fasthttp.Request
+}
+
+func (rw requestWrapper) GetHeader(key string) string {
+	v := rw.request.Header.Peek(key)
+	if v == nil {
+		return ""
+	}
+	return string(v)
+}
+
+func (rw requestWrapper) GetBody() []byte {
+	b := rw.request.Body()
+	if b == nil {
+		return []byte{}
+	}
+	return b
+}
+
+func (s *clientStream) endStream(ctx context.Context) {
+	headers := &mosnhttp.RequestHeader{RequestHeader: &s.request.Header}
+	serviceName, _ := hooks.BuildServiceName(headers, ctx)
+	err := hooks.BeforeEncode(ctx, headers, serviceName, &requestWrapper{request: s.request})
+
+	if err == nil {
+		err = s.doSend()
+	}
 
 	if err != nil {
 		log.Proxy.Errorf(s.stream.ctx, "[stream] [http] send client request error: %+v", err)

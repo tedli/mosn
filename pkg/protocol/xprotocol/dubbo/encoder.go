@@ -21,11 +21,16 @@ import (
 	"context"
 	"encoding/binary"
 
+	"mosn.io/mosn/pkg/protocol/xprotocol/hooks"
 	"mosn.io/mosn/pkg/types"
 	"mosn.io/pkg/buffer"
 )
 
 func encodeRequest(ctx context.Context, request *Frame) (types.IoBuffer, error) {
+	serviceName, _ := hooks.BuildServiceName(request, ctx)
+	if err := hooks.BeforeEncode(ctx, request, serviceName, &requestWrapper{frame: request}); err != nil {
+		return nil, err
+	}
 	return encodeFrame(ctx, request)
 }
 func encodeResponse(ctx context.Context, response *Frame) (types.IoBuffer, error) {

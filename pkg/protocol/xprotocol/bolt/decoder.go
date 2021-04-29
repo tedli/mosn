@@ -22,12 +22,25 @@ import (
 	"encoding/binary"
 	"strconv"
 
-	"mosn.io/mosn/pkg/variable"
-
 	"mosn.io/mosn/pkg/protocol/xprotocol"
+	"mosn.io/mosn/pkg/protocol/xprotocol/hooks"
 	"mosn.io/mosn/pkg/types"
+	"mosn.io/mosn/pkg/variable"
 	"mosn.io/pkg/buffer"
 )
+
+type requestWrapper struct {
+	request *Request
+}
+
+func (rw requestWrapper) GetHeader(key string) string {
+	value, _ := rw.request.Get(key)
+	return value
+}
+
+func (rw requestWrapper) GetBody() []byte {
+	return rw.request.rawData
+}
 
 func decodeRequest(ctx context.Context, data types.IoBuffer, oneway bool) (cmd interface{}, err error) {
 	bytesLen := data.Len()
@@ -96,6 +109,12 @@ func decodeRequest(ctx context.Context, data types.IoBuffer, oneway bool) (cmd i
 		request.rawContent = request.rawData[contentIndex:]
 		request.Content = buffer.NewIoBufferBytes(request.rawContent)
 	}
+
+	serviceName, _ := hooks.BuildServiceName(request, ctx)
+	if err = hooks.AfterDecode(ctx, request, serviceName, &requestWrapper{request: request}); err != nil {
+		return nil, err
+	}
+
 	return request, err
 }
 

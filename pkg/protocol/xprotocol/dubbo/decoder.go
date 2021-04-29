@@ -27,10 +27,10 @@ import (
 	"strings"
 	"sync"
 
-	"mosn.io/mosn/pkg/trace"
-
 	"github.com/apache/dubbo-go-hessian2"
 	"mosn.io/mosn/pkg/protocol"
+	"mosn.io/mosn/pkg/protocol/xprotocol/hooks"
+	"mosn.io/mosn/pkg/trace"
 	"mosn.io/mosn/pkg/types"
 	"mosn.io/pkg/buffer"
 )
@@ -49,6 +49,19 @@ var (
 		},
 	}
 )
+
+type requestWrapper struct {
+	frame *Frame
+}
+
+func (rw requestWrapper) GetHeader(key string) string {
+	value, _ := rw.frame.Get(key)
+	return value
+}
+
+func (rw requestWrapper) GetBody() []byte {
+	return rw.frame.payload
+}
 
 func decodeFrame(ctx context.Context, data types.IoBuffer) (cmd interface{}, err error) {
 	// convert data to dubbo frame
@@ -108,6 +121,12 @@ func decodeFrame(ctx context.Context, data types.IoBuffer) (cmd interface{}, err
 	frame.rawData = body
 	frame.data = buffer.NewIoBufferBytes(frame.rawData)
 	data.Drain(int(frameLen))
+
+	serviceName, _ := hooks.BuildServiceName(frame, ctx)
+	if err := hooks.AfterDecode(ctx, frame, serviceName, &requestWrapper{frame: frame}); err != nil {
+		return nil, err
+	}
+
 	return frame, nil
 }
 
