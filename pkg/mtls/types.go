@@ -20,6 +20,8 @@ package mtls
 import (
 	"crypto/x509"
 	"errors"
+	"os"
+	"strings"
 
 	"mosn.io/mosn/pkg/config/v2"
 	"mosn.io/mosn/pkg/mtls/crypto/tls"
@@ -57,9 +59,29 @@ var (
 
 // ALPN
 var alpn = map[string]bool{
-	"h2":       true,
-	"http/1.1": true,
-	"sofa":     true,
+	"h2":          true,
+	"http/1.1":    true,
+	"sofa":        true,
+	"default":     true,
+	"dubbo":       true,
+	"crpc":        true,
+	"springcloud": true,
+	"http1":       true,
+	"http2":       true,
+}
+
+func init() {
+	if val := os.Getenv("TLS_ALPN_EXTENDS"); val != "" {
+		protos := strings.Split(val, ",")
+		if protos != nil && len(protos) > 0 {
+			for _, proto := range protos {
+				proto = strings.ToLower(strings.TrimSpace(proto))
+				if proto != "" {
+					alpn[proto] = true
+				}
+			}
+		}
+	}
 }
 
 // ConfigHooks is a  set of functions used to make a tls config

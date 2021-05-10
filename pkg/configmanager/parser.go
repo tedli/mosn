@@ -360,7 +360,7 @@ func GetStreamFilters(configs []v2.Filter) []api.StreamFilterChainFactory {
 	for _, c := range configs {
 		sfcc, err := api.CreateStreamFilterChainFactory(c.Type, c.Config)
 		if err != nil {
-			log.DefaultLogger.Errorf("[config] get stream filter failed, type: %s, error: %v", c.Type, err)
+			log.DefaultLogger.Infof("[config] get stream filter failed, type: %s, error: %v", c.Type, err)
 			continue
 		}
 		if sfcc != nil {
