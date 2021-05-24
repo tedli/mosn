@@ -19,10 +19,9 @@ package trace
 
 import (
 	"context"
+	"errors"
 
 	"mosn.io/mosn/pkg/types"
-
-	"errors"
 
 	mosnctx "mosn.io/mosn/pkg/context"
 )
@@ -74,6 +73,9 @@ func IsEnabled() bool {
 }
 
 func Tracer(protocol types.ProtocolName) types.Tracer {
+	if global.driver == nil {
+		return nil
+	}
 	return global.driver.Get(protocol)
 }
 
