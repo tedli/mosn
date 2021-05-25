@@ -50,6 +50,9 @@ func (f *streamConnFactory) CreateBiDirectStream(context context.Context, connec
 }
 
 func (f *streamConnFactory) ProtocolMatch(context context.Context, prot string, magic []byte) error {
+	if context == nil {
+		return stream.FAILED
+	}
 	if val := context.Value(types.ContextOriRemoteAddr); val == nil {
 		return stream.FAILED
 	}
