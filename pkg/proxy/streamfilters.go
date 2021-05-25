@@ -43,6 +43,7 @@ func (s *downStream) runAppendFilters(p types.Phase, headers types.HeaderMap, da
 				if host.Health() {
 					s.receiverFiltersAgainPhase = types.ChooseHost
 					s.senderFiltersIndex = 0
+					atomic.CompareAndSwapUint32(&s.upstreamResponseReceived, 1, 0)
 					return
 				}
 			}
