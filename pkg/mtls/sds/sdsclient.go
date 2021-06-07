@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
+	v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/types"
 	"mosn.io/pkg/utils"
@@ -99,6 +100,10 @@ func (client *SdsClientImpl) SetSecret(name string, secret *auth.Secret) {
 		mosnSecret := types.SecretConvert(secret)
 		fc(name, mosnSecret)
 	}
+}
+
+func (client *SdsClientImpl) GetSdsClient() v2.SecretDiscoveryServiceClient {
+	return client.sdsSubscriber.sdsClient
 }
 
 // SetPostCallback
