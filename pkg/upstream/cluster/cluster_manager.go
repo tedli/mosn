@@ -59,11 +59,11 @@ const globalTLSMetrics = "global"
 
 // types.ClusterManager
 type clusterManager struct {
-	clustersMap      sync.Map
-	protocolConnPool sync.Map
-	tlsMetrics       *mtls.TLSStats
-	tlsMng           atomic.Value // store types.TLSClientContextManager
-	mux              sync.Mutex
+	clustersMap         sync.Map
+	protocolConnPool    sync.Map
+	tlsMetrics          *mtls.TLSStats
+	tlsMng              atomic.Value // store types.TLSClientContextManager
+	mux                 sync.Mutex
 	allowDupConnForHost bool
 }
 
@@ -370,6 +370,9 @@ func (cm *clusterManager) getActiveConnectionPool(balancerContext types.LoadBala
 	if try > maxHostsCounts {
 		try = maxHostsCounts
 	}
+
+	blackList := map[string]struct{}{}
+
 	for i := 0; i < try; i++ {
 		host := clusterSnapshot.LoadBalancer().ChooseHost(balancerContext)
 		if host == nil {
@@ -383,6 +386,12 @@ func (cm *clusterManager) getActiveConnectionPool(balancerContext types.LoadBala
 			// 默认的主站是会将单个 host 上的连接去重的
 			addr = host.AddressString()
 		}
+
+		if _, ok := blackList[addr]; ok {
+			log.DefaultLogger.Warnf("[upstream] [cluster manager] host %+v is in blacklist: %+v, will retry", addr, blackList)
+			continue
+		}
+
 		if log.DefaultLogger.GetLogLevel() >= log.DEBUG {
 			log.DefaultLogger.Debugf("[upstream] [cluster manager] clusterSnapshot.loadbalancer.ChooseHost result is %s, cluster name = %s", addr, clusterSnapshot.ClusterInfo().Name())
 		}
@@ -439,6 +448,10 @@ func (cm *clusterManager) getActiveConnectionPool(balancerContext types.LoadBala
 			return pool, nil
 		}
 		pools[i] = pool
+
+		//The selected host failed to check and was added to the blacklist
+		blackList[addr] = struct{}{}
+		log.DefaultLogger.Warnf("[upstream] [cluster manager] host %+v has been added into blacklist: %+v", addr, blackList)
 	}
 
 	// perhaps the first request, wait for tcp handshaking. total wait time is 1ms + 10ms + (100ms * 5)
