@@ -27,6 +27,7 @@ type SdsSubscriber struct {
 	receiveStopChannel   chan int
 	serviceNode          string
 	serviceCluster       string
+	sdsClient            v2.SecretDiscoveryServiceClient
 }
 
 type SdsStreamClient struct {
@@ -206,14 +207,14 @@ func (subscribe *SdsSubscriber) getSdsStreamClient(sdsStreamConfig *SdsStreamCon
 	if err != nil {
 		return err
 	}
-	sdsServiceClient := v2.NewSecretDiscoveryServiceClient(conn)
+	subscribe.sdsClient = v2.NewSecretDiscoveryServiceClient(conn)
 	sdsStreamClient := &SdsStreamClient{
 		sdsStreamConfig: sdsStreamConfig,
 		conn:            conn,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	sdsStreamClient.cancel = cancel
-	streamSecretsClient, err := sdsServiceClient.StreamSecrets(ctx)
+	streamSecretsClient, err := subscribe.sdsClient.StreamSecrets(ctx)
 	if err != nil {
 		conn.Close()
 		return err
