@@ -38,6 +38,35 @@ type serverContextManager struct {
 	config *tls.Config
 }
 
+var listenerNameWithAlpnProtocolMap *map[string]string
+
+func SetListenerNameWithAlpnProtocol(maps *map[string]string) {
+	listenerNameWithAlpnProtocolMap = maps
+}
+
+func IsMatchAlpns(alpn string, listenerName string) bool {
+	if alpn == "" {
+		return true
+	}
+	lnwapm := listenerNameWithAlpnProtocolMap
+	if lnwapm == nil {
+		return true
+	}
+	alpnMaps := *lnwapm
+	if alpnMaps == nil || len(alpnMaps) == 0 {
+		return true
+	}
+	alpns := strings.Split(alpn, ",")
+	if alpns != nil && len(alpns) > 0 {
+		for _, alpnPro := range alpns {
+			if strings.EqualFold(alpnPro, alpnMaps[listenerName]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // NewTLSServerContextManager returns a types.TLSContextManager used in TLS Server
 // A Server Manager can contains multiple certificates in provider
 func NewTLSServerContextManager(cfg *v2.Listener) (types.TLSContextManager, error) {
@@ -49,6 +78,13 @@ func NewTLSServerContextManager(cfg *v2.Listener) (types.TLSContextManager, erro
 	}
 	for _, c := range cfg.FilterChains {
 		for _, tlsCfg := range c.TLSContexts {
+			if tlsCfg.ExtendVerify["tls_disabled"] == "true" {
+				return mng, nil
+			}
+			if !IsMatchAlpns(tlsCfg.ALPN, cfg.Name) {
+				return mng, nil
+			}
+
 			provider, err := NewProvider(&tlsCfg)
 			if err != nil {
 				return nil, err
@@ -119,7 +155,7 @@ func (mng *serverContextManager) Conn(c net.Conn) (net.Conn, error) {
 		return &TLSConn{
 			tls.Server(conn, mng.config.Clone()),
 		}, nil
-	// Non TLS
+		// Non TLS
 	default:
 		return conn, nil
 	}
