@@ -81,24 +81,24 @@ func (f *HTTPDialSessionFactory) NewSession(cfg map[string]interface{}, host typ
 
 	// re-config port
 	if v, ok := cfg[PortCfgKey]; ok {
-		if _, ok := v.(int); ok {
-			portStr := fmt.Sprintf("%d", v)
-			address := strings.Split(u.Host, ":")
+		var portStr string
 
-			switch len(address) {
-			case 1:
-				address = append(address, portStr)
-			case 2:
-				address[1] = portStr
-			default:
-				log.DefaultLogger.Errorf("[upstream] [health check] [httpdial session] unexcepted address splits: %v", address)
-				return nil
-			}
-			ret.URL.Host = strings.Join(address, ":")
-		} else {
-			log.DefaultLogger.Errorf("[upstream] [health check] [httpdial session] unexcepted port number type: %+v", reflect.TypeOf(v))
+		portStr = fmt.Sprintf("%v", v)
+		address := strings.Split(u.Host, ":")
+
+		switch len(address) {
+		case 1:
+			address = append(address, portStr)
+		case 2:
+			address[1] = portStr
+		default:
+			log.DefaultLogger.Errorf("[upstream] [health check] [httpdial session] unexcepted address splits: %v", address)
 			return nil
 		}
+		ret.URL.Host = strings.Join(address, ":")
+	} else {
+		log.DefaultLogger.Errorf("[upstream] [health check] [httpdial session] unexcepted port number type: %+v", reflect.TypeOf(v))
+		return nil
 	}
 
 	if v, ok := cfg[PathCfgKey]; ok {
