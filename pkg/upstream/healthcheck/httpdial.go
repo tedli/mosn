@@ -131,6 +131,7 @@ func (s *HTTPDialSession) CheckHealth() bool {
 		return false
 	}
 
+	log.DefaultLogger.Debugf("[upstream] [health check] [httpdial session] http check for host %s succeed", s.String())
 	return resp.StatusCode == http.StatusOK
 }
 

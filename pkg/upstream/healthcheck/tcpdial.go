@@ -47,6 +47,8 @@ func (s *TCPDialSession) CheckHealth() bool {
 		return false
 	}
 	conn.Close()
+
+	log.DefaultLogger.Debugf("[upstream] [health check] [tcpdial session] dial tcp for host %s succeed", s.addr)
 	return true
 }
 

@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	v2 "mosn.io/mosn/pkg/config/v2"
+	"mosn.io/mosn/pkg/log"
 	"mosn.io/mosn/pkg/types"
 )
 
@@ -43,6 +44,8 @@ func CreateHealthCheck(cfg v2.HealthCheck) types.HealthChecker {
 		// not registered, use default session factory
 		f = &TCPDialSessionFactory{}
 	}
+	log.DefaultLogger.Debugf("[upstream] [health check] [create health check] created check session: %+v", f)
+
 	return newHealthChecker(cfg, f)
 }
 

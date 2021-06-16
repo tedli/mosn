@@ -101,6 +101,8 @@ func newHealthChecker(cfg v2.HealthCheck, f types.HealthCheckSessionFactory) typ
 
 		}
 	}
+
+	log.DefaultLogger.Debugf("[upstream] [health check] [create health check] created checker: %+v", hc)
 	return hc
 }
 
