@@ -106,6 +106,10 @@ func (client *SdsClientImpl) GetSdsClient() v2.SecretDiscoveryServiceClient {
 	return client.sdsSubscriber.sdsClient
 }
 
+func (client *SdsClientImpl) GetSdsSubscriber() *SdsSubscriber {
+	return client.sdsSubscriber
+}
+
 // SetPostCallback
 func SetSdsPostCallback(fc func()) {
 	sdsPostCallback = fc
